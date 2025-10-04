@@ -1,0 +1,15 @@
+# Temporary files
+*.tmp
+*.temp
+*~
+.DS_Store
+
+# Log files (don't track logs, just scripts)
+*.log
+
+# Backup files
+*.bak
+*.backup
+
+# Test files
+test_*
