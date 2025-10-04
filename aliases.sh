@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# EarthCast HPC Dashboard Aliases v18
-# Fixed AccuWeather Europe path to data/accuwx_plus
+# EarthCast HPC Dashboard Aliases v19
+# Fixed upcoming jobs calculation to properly handle day transitions
 
 # Dashboard commands
-alias dashboard='$HOME/monitoring/scripts/dashboard_v18.sh'
-alias hpc-status='$HOME/monitoring/scripts/dashboard_v18.sh'
-alias dashboard-watch='watch -c -n 30 $HOME/monitoring/scripts/dashboard_v18.sh'
-alias monitor='watch -c -n 30 $HOME/monitoring/scripts/dashboard_v18.sh'
+alias dashboard='$HOME/monitoring/scripts/dashboard_v19.sh'
+alias hpc-status='$HOME/monitoring/scripts/dashboard_v19.sh'
+alias dashboard-watch='watch -c -n 30 $HOME/monitoring/scripts/dashboard_v19.sh'
+alias monitor='watch -c -n 30 $HOME/monitoring/scripts/dashboard_v19.sh'
 
 # Log checking aliases
 alias check-wrf='ls -la $HOME/logs/wrf/run_master.global* | tail -5'
@@ -22,7 +22,7 @@ alias log-activity='find $HOME/logs -name "*.log" -mmin -60 | wc -l'
 
 echo "EarthCast HPC Dashboard aliases loaded!"
 echo "Commands available:"
-echo "  dashboard       - Show current status with accurate WRF file counts"
+echo "  dashboard       - Show current status with upcoming jobs (fixed day transitions)"
 echo "  dashboard-watch - Auto-refresh every 30 seconds"
 echo "  hpc-status      - Same as dashboard"
 echo "  monitor         - Same as dashboard-watch"
