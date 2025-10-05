@@ -9,6 +9,15 @@ __pycache__/
 
 # Backup files
 *.backup*
+*.pre_*
+*.step*_backup
+*_backup
+*.clean
+*_clean.py
+*_clean.html
+*_working_*
+*working_clean*
+backups/
 *~
 *.tmp
 *.temp
