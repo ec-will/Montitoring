@@ -1,0 +1,33 @@
+# Generated data files
+dashboard_data.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Backup files
+*.backup*
+*~
+*.tmp
+*.temp
+
+# Log files
+*.log
+
+# Temporary scripts and fixes
+fix_*.py
+*_fixed.html
+*_server.html
+restore_*.sh
+update_footer.py
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
