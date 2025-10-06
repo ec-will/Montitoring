@@ -32,3 +32,17 @@ update_footer.py
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Backup files
+backups/
+*.backup
+*.backup[0-9]*
+
+# Temporary visualization files
+cluster_usage_scatter.html
+local_test*.html
+temp_*.py
+
+# Generated data files (optional - comment out if you want to track them)
+dashboard_cluster_usage.json
+dashboard_data.json
