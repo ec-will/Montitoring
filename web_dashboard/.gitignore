@@ -31,3 +31,6 @@ update_footer.py
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Supplemental generated data
+dashboard_supplemental.json
