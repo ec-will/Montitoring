@@ -15,7 +15,7 @@ def get_job_usage_data():
     """Get and summarize job usage data from last 24 hours"""
     try:
         # Get CSV data from myusage command
-        output = subprocess.check_output(['myusage', '--start', 'now-1d/d', '--csv'], 
+        output = subprocess.check_output(['myusage', '--start', 'now-24h', '--csv'], 
                                        stderr=subprocess.DEVNULL).decode()
         
         # Skip header lines and get to CSV data
@@ -117,7 +117,7 @@ def main():
             'version': '1.0',
             'generated_at': int(time.time()),
             'generated_time': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
-            'data_source': 'myusage --start now-1d/d --csv',
+            'data_source': 'myusage --start now-24h --csv',
             'description': '24-hour cluster job usage summary by job name'
         },
         'job_usage': get_job_usage_data()
