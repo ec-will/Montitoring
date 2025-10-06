@@ -10,6 +10,18 @@
 # Backup files
 *.bak
 *.backup
+*.pre_*
+*.step*_backup
+*_backup
+*.clean
+*_clean.py
+*_clean.html
+*_working_*
+*working_clean*
+backups/
 
 # Test files
 test_*
+
+# Generated data files
+dashboard_data.json
