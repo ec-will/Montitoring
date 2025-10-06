@@ -1,5 +1,9 @@
 #!/bin/bash
 # EarthCast Dashboard Cluster Usage Update Script
+
+# Set environment variables for myusage command
+export PATH="/usr/login/bin:$PATH"
+export PERL5LIB="/usr/login/share/perl5"
 # Runs less frequently than main dashboard (e.g., every hour)
 
 SCRIPT_DIR="/e/08/erthch01/monitoring/web_dashboard"
