@@ -1,5 +1,6 @@
 # Generated data files
 dashboard_data.json
+dashboard_cluster_usage.json
 
 # Python cache
 __pycache__/
@@ -31,6 +32,3 @@ update_footer.py
 .Trashes
 ehthumbs.db
 Thumbs.db
-
-# Supplemental generated data
-dashboard_supplemental.json

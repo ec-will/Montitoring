@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-EarthCast HPC Dashboard - Supplemental Data Generator
-Generates additional dashboard data for job usage analysis (last 24 hours)
+EarthCast HPC Dashboard - Cluster Usage Data Generator
+Generates cluster job usage analysis data (last 24 hours)
 """
 
 import subprocess
@@ -106,37 +106,37 @@ def get_job_usage_data():
         }
 
 def main():
-    """Generate supplemental dashboard data"""
+    """Generate cluster usage dashboard data"""
     
-    print("Collecting job usage data for last 24 hours...")
+    print("Collecting cluster job usage data for last 24 hours...")
     
-    # Collect supplemental data
-    supplemental_data = {
+    # Collect cluster usage data
+    cluster_usage_data = {
         'metadata': {
-            'generator': 'generate_supplemental_data.py',
+            'generator': 'dashboard_cluster_usage.py',
             'version': '1.0',
             'generated_at': int(time.time()),
             'generated_time': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
             'data_source': 'myusage --start now-1d/d --csv',
-            'description': '24-hour job usage summary by job name'
+            'description': '24-hour cluster job usage summary by job name'
         },
         'job_usage': get_job_usage_data()
     }
     
     # Write JSON file
-    with open('dashboard_supplemental.json', 'w') as f:
-        json.dump(supplemental_data, f, indent=2)
+    with open('dashboard_cluster_usage.json', 'w') as f:
+        json.dump(cluster_usage_data, f, indent=2)
     
     # Print summary
-    usage_data = supplemental_data['job_usage']
+    usage_data = cluster_usage_data['job_usage']
     if 'error' not in usage_data:
         summary = usage_data['summary']
-        print(f"Generated supplemental data at {supplemental_data['metadata']['generated_time']}")
+        print(f"Generated cluster usage data at {cluster_usage_data['metadata']['generated_time']}")
         print(f"Summary: {summary['total_unique_jobs']} unique jobs, {summary['total_job_runs']} runs, {summary['total_core_hours']} core-hours")
     else:
         print(f"Error: {usage_data['error']}")
     
-    print("JSON file: dashboard_supplemental.json")
+    print("JSON file: dashboard_cluster_usage.json")
 
 if __name__ == "__main__":
     main()
