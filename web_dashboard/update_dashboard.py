@@ -317,6 +317,160 @@ def get_dynamic_next_run(workflow_name):
         return "Unknown schedule"
 
 
+def get_upcoming_jobs(hours_ahead=6):
+    """Generate upcoming scheduled jobs for the next N hours"""
+    from datetime import datetime, timedelta
+    
+    now = datetime.utcnow()
+    end_time = now + timedelta(hours=hours_ahead)
+    upcoming = []
+    
+    # Define all cron schedules
+    schedules = {
+        'global_wrf_status': {
+            'hours': [6, 7, 8, 9, 11, 13, 15, 16, 17, 18, 20, 22],
+            'minute': 1,
+            'name': 'global_wrf_status'
+        },
+        'accuwx_asia_00Z': {'hours': [4], 'minute': 29, 'name': 'accuwx_asia_00Z'},
+        'accuwx_asia_06Z': {'hours': [10], 'minute': 29, 'name': 'accuwx_asia_06Z'},
+        'accuwx_asia_12Z': {'hours': [16], 'minute': 29, 'name': 'accuwx_asia_12Z'},
+        'accuwx_asia_18Z': {'hours': [22], 'minute': 29, 'name': 'accuwx_asia_18Z'},
+        'accuwx_europe_00Z': {'hours': [4], 'minute': 28, 'name': 'accuwx_europe_00Z'},
+        'accuwx_europe_06Z': {'hours': [10], 'minute': 28, 'name': 'accuwx_europe_06Z'},
+        'accuwx_europe_12Z': {'hours': [16], 'minute': 28, 'name': 'accuwx_europe_12Z'},
+        'accuwx_europe_18Z': {'hours': [22], 'minute': 28, 'name': 'accuwx_europe_18Z'},
+        'drone_weather': {'hours': list(range(24)), 'minute': 10, 'name': 'drone_weather_seq'},
+        'mrms_download': {
+            'hours': list(range(24)), 
+            'minutes': [1, 6, 11, 16, 21, 26, 31, 36, 41, 46, 51, 56],
+            'name': 'mrms_download'
+        }
+    }
+    
+    # Generate all upcoming job times
+    current_time = now
+    while current_time <= end_time:
+        for job_id, schedule in schedules.items():
+            if 'minutes' in schedule:
+                # Special case for jobs that run multiple times per hour (like mrms)
+                for minute in schedule['minutes']:
+                    job_time = current_time.replace(minute=minute, second=0, microsecond=0)
+                    if job_time > now and job_time <= end_time:
+                        upcoming.append({
+                            'time': job_time,
+                            'name': schedule['name'],
+                            'formatted_time': format_upcoming_time(job_time, now)
+                        })
+            else:
+                # Regular hourly schedules
+                if current_time.hour in schedule['hours']:
+                    job_time = current_time.replace(minute=schedule['minute'], second=0, microsecond=0)
+                    if job_time > now and job_time <= end_time:
+                        upcoming.append({
+                            'time': job_time,
+                            'name': schedule['name'],
+                            'formatted_time': format_upcoming_time(job_time, now)
+                        })
+        
+        current_time += timedelta(hours=1)
+    
+    # Sort by time and return first 10
+    upcoming.sort(key=lambda x: x['time'])
+    return [{'name': job['name'], 'next_run': job['formatted_time']} for job in upcoming[:10]]
+
+def format_upcoming_time(job_time, now):
+    """Format upcoming job time for display"""
+    time_diff = (job_time - now).total_seconds() / 60
+    
+    if time_diff < 60:
+        return f"In {int(time_diff)} min"
+    elif job_time.date() == now.date():
+        return f"Today {job_time.strftime('%H:%M')}"
+    elif job_time.date() == (now + timedelta(days=1)).date():
+        return f"Tomorrow {job_time.strftime('%H:%M')}"
+    else:
+        return job_time.strftime('%m/%d %H:%M')
+
+
+
+def get_upcoming_jobs(hours_ahead=6):
+    """Generate upcoming scheduled jobs for the next N hours"""
+    from datetime import datetime, timedelta
+    
+    now = datetime.utcnow()
+    end_time = now + timedelta(hours=hours_ahead)
+    upcoming = []
+    
+    # Define all cron schedules
+    schedules = {
+        'global_wrf_status': {
+            'hours': [6, 7, 8, 9, 11, 13, 15, 16, 17, 18, 20, 22],
+            'minute': 1,
+            'name': 'global_wrf_status'
+        },
+        'accuwx_asia_00Z': {'hours': [4], 'minute': 29, 'name': 'accuwx_asia_00Z'},
+        'accuwx_asia_06Z': {'hours': [10], 'minute': 29, 'name': 'accuwx_asia_06Z'},
+        'accuwx_asia_12Z': {'hours': [16], 'minute': 29, 'name': 'accuwx_asia_12Z'},
+        'accuwx_asia_18Z': {'hours': [22], 'minute': 29, 'name': 'accuwx_asia_18Z'},
+        'accuwx_europe_00Z': {'hours': [4], 'minute': 28, 'name': 'accuwx_europe_00Z'},
+        'accuwx_europe_06Z': {'hours': [10], 'minute': 28, 'name': 'accuwx_europe_06Z'},
+        'accuwx_europe_12Z': {'hours': [16], 'minute': 28, 'name': 'accuwx_europe_12Z'},
+        'accuwx_europe_18Z': {'hours': [22], 'minute': 28, 'name': 'accuwx_europe_18Z'},
+        'drone_weather': {'hours': list(range(24)), 'minute': 10, 'name': 'drone_weather_seq'},
+        'mrms_download': {
+            'hours': list(range(24)), 
+            'minutes': [1, 6, 11, 16, 21, 26, 31, 36, 41, 46, 51, 56],
+            'name': 'mrms_download'
+        }
+    }
+    
+    # Generate all upcoming job times
+    current_time = now
+    while current_time <= end_time:
+        for job_id, schedule in schedules.items():
+            if 'minutes' in schedule:
+                # Special case for jobs that run multiple times per hour (like mrms)
+                for minute in schedule['minutes']:
+                    job_time = current_time.replace(minute=minute, second=0, microsecond=0)
+                    if job_time > now and job_time <= end_time:
+                        upcoming.append({
+                            'time': job_time,
+                            'name': schedule['name'],
+                            'formatted_time': format_upcoming_time(job_time, now)
+                        })
+            else:
+                # Regular hourly schedules
+                if current_time.hour in schedule['hours']:
+                    job_time = current_time.replace(minute=schedule['minute'], second=0, microsecond=0)
+                    if job_time > now and job_time <= end_time:
+                        upcoming.append({
+                            'time': job_time,
+                            'name': schedule['name'],
+                            'formatted_time': format_upcoming_time(job_time, now)
+                        })
+        
+        current_time += timedelta(hours=1)
+    
+    # Sort by time and return first 10
+    upcoming.sort(key=lambda x: x['time'])
+    return [{'name': job['name'], 'next_run': job['formatted_time']} for job in upcoming[:10]]
+
+def format_upcoming_time(job_time, now):
+    """Format upcoming job time for display"""
+    time_diff = (job_time - now).total_seconds() / 60
+    
+    if time_diff < 60:
+        return f"In {int(time_diff)} min"
+    elif job_time.date() == now.date():
+        return f"Today {job_time.strftime('%H:%M')}"
+    elif job_time.date() == (now + timedelta(days=1)).date():
+        return f"Tomorrow {job_time.strftime('%H:%M')}"
+    else:
+        return job_time.strftime('%m/%d %H:%M')
+
+
+
 def get_dynamic_next_run(workflow_name):
     """Calculate next run time based on actual cron schedules"""
     import subprocess
@@ -444,14 +598,7 @@ dashboard_data = {
     'workflows': get_workflows(),
     'pbs_jobs': get_pbs_jobs(),
     'node_status': get_node_status(),
-    'upcoming_jobs': [
-        {'name': 'global_wrf_00Z', 'next_run': 'Today 23:30'},
-        {'name': 'accuwx_asia_12Z', 'next_run': 'Tomorrow 00:15'},
-        {'name': 'accuwx_europe_12Z', 'next_run': 'Tomorrow 00:30'},
-        {'name': 'mrms_download', 'next_run': 'Tomorrow 01:00'},
-        {'name': 'drone_weather_seq', 'next_run': 'Tomorrow 02:00'},
-        {'name': 'cleanup_old_files', 'next_run': 'Tomorrow 03:00'}
-    ],
+    'upcoming_jobs': get_upcoming_jobs(6),
     'cron_summary': {
         'total_jobs': 53,
         'last_updated': int(time.time())
