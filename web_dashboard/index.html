@@ -368,6 +368,25 @@
             } else {
                 html += '<div class="no-data">No upcoming jobs scheduled</div>';
             }
+            
+            // Add frequent jobs section
+            if (dashboardData.frequent_jobs && dashboardData.frequent_jobs.length > 0) {
+                html += '<h3 style="margin-top: 20px; color: #666;">Frequent Jobs (≤10 min intervals)</h3>';
+                html += '<table style="font-size: 0.9em;">';
+                html += '<thead><tr><th>Job</th><th>Frequency</th><th>Next Run</th></tr></thead>';
+                html += '<tbody>';
+                
+                dashboardData.frequent_jobs.forEach(job => {
+                    html += '<tr>';
+                    html += '<td><strong>' + job.name + '</strong></td>';
+                    html += '<td style="color: #888;">' + job.frequency + '</td>';
+                    html += '<td>' + job.next_run + '</td>';
+                    html += '</tr>';
+                });
+                
+                html += '</tbody></table>';
+            }
+            
             html += '</div>';
 
             // Node Status (right column)
