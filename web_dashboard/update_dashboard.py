@@ -340,12 +340,8 @@ def get_upcoming_jobs(hours_ahead=6):
         'accuwx_europe_06Z': {'hours': [10], 'minute': 28, 'name': 'accuwx_europe_06Z'},
         'accuwx_europe_12Z': {'hours': [16], 'minute': 28, 'name': 'accuwx_europe_12Z'},
         'accuwx_europe_18Z': {'hours': [22], 'minute': 28, 'name': 'accuwx_europe_18Z'},
-        'drone_weather': {'hours': list(range(24)), 'minute': 10, 'name': 'drone_weather_seq'},
-        'mrms_download': {
-            'hours': list(range(24)), 
-            'minutes': [1, 6, 11, 16, 21, 26, 31, 36, 41, 46, 51, 56],
-            'name': 'mrms_download'
-        }
+        # 'drone_weather': {'hours': list(range(24)), 'minute': 10, 'name': 'drone_weather_seq'}, # Moved to frequent_jobs
+        # 'mrms_download': moved to frequent_jobs due to 5-minute frequency
     }
     
     # Generate all upcoming job times
@@ -417,12 +413,8 @@ def get_upcoming_jobs(hours_ahead=6):
         'accuwx_europe_06Z': {'hours': [10], 'minute': 28, 'name': 'accuwx_europe_06Z'},
         'accuwx_europe_12Z': {'hours': [16], 'minute': 28, 'name': 'accuwx_europe_12Z'},
         'accuwx_europe_18Z': {'hours': [22], 'minute': 28, 'name': 'accuwx_europe_18Z'},
-        'drone_weather': {'hours': list(range(24)), 'minute': 10, 'name': 'drone_weather_seq'},
-        'mrms_download': {
-            'hours': list(range(24)), 
-            'minutes': [1, 6, 11, 16, 21, 26, 31, 36, 41, 46, 51, 56],
-            'name': 'mrms_download'
-        }
+        # 'drone_weather': {'hours': list(range(24)), 'minute': 10, 'name': 'drone_weather_seq'}, # Moved to frequent_jobs
+        # 'mrms_download': moved to frequent_jobs due to 5-minute frequency
     }
     
     # Generate all upcoming job times
@@ -599,6 +591,10 @@ dashboard_data = {
     'pbs_jobs': get_pbs_jobs(),
     'node_status': get_node_status(),
     'upcoming_jobs': get_upcoming_jobs(6),
+    'frequent_jobs': [
+        {'name': 'mrms_download', 'frequency': 'Every 5 minutes', 'next_run': get_dynamic_next_run('mrms')},
+        {'name': 'drone_weather_seq', 'frequency': 'Every hour', 'next_run': get_dynamic_next_run('drone_weather')}
+    ],
     'cron_summary': {
         'total_jobs': 53,
         'last_updated': int(time.time())
