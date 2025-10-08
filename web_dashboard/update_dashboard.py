@@ -174,15 +174,15 @@ def get_workflows():
         for workflow_name, workflow_data in workflows.items():
             # Add next run times
             if workflow_name == 'global_wrf':
-                workflow_data['next_run'] = 'Today 23:30'
+                workflow_data['next_run'] = get_dynamic_next_run('global_wrf')
             elif workflow_name == 'accuwx_asia':
-                workflow_data['next_run'] = 'Tomorrow 00:15'
+                workflow_data['next_run'] = get_dynamic_next_run('accuwx_asia')
             elif workflow_name == 'accuwx_europe':
-                workflow_data['next_run'] = 'Tomorrow 00:30'
+                workflow_data['next_run'] = get_dynamic_next_run('accuwx_europe')
             elif workflow_name == 'mrms':
-                workflow_data['next_run'] = 'Every 5 minutes'
+                workflow_data['next_run'] = get_dynamic_next_run('mrms')
             elif workflow_name == 'drone_weather':
-                workflow_data['next_run'] = 'Hourly'
+                workflow_data['next_run'] = get_dynamic_next_run('drone_weather')
             
             # Get real log content
             log_file = workflow_data.get('log_file')
@@ -197,6 +197,246 @@ def get_workflows():
     except Exception as e:
         print(f"Error getting workflows: {e}")
         return {}
+def get_dynamic_next_run(workflow_name):
+    """Calculate next run time based on actual cron schedules"""
+    import subprocess
+    from datetime import datetime, timedelta
+    
+    # Get current UTC time
+    now = datetime.utcnow()
+    current_hour = now.hour
+    current_minute = now.minute
+    
+    if workflow_name == 'global_wrf':
+        # Runs at minutes 01 of hours: 06,07,08,09,11,13,15,16,17,18,20,22
+        hours = [6, 7, 8, 9, 11, 13, 15, 16, 17, 18, 20, 22]
+        minute = 1
+        
+        # Find next scheduled hour
+        next_hour = None
+        for hour in hours:
+            if hour > current_hour or (hour == current_hour and minute > current_minute):
+                next_hour = hour
+                break
+        
+        if next_hour is not None:
+            next_time = now.replace(hour=next_hour, minute=minute, second=0, microsecond=0)
+            if next_time <= now:
+                next_time += timedelta(days=1)
+        else:
+            # Next run is tomorrow at first hour (06:01)
+            next_time = (now + timedelta(days=1)).replace(hour=6, minute=1, second=0, microsecond=0)
+            
+        if next_time.date() == now.date():
+            return f"Today {next_time.strftime('%H:%M')}"
+        else:
+            return f"Tomorrow {next_time.strftime('%H:%M')}"
+    
+    elif workflow_name == 'accuwx_asia':
+        # Runs at 29 minutes past hours: 04, 10, 16, 22 UTC
+        hours = [4, 10, 16, 22]
+        minute = 29
+        
+        next_hour = None
+        for hour in hours:
+            if hour > current_hour or (hour == current_hour and minute > current_minute):
+                next_hour = hour
+                break
+        
+        if next_hour is not None:
+            next_time = now.replace(hour=next_hour, minute=minute, second=0, microsecond=0)
+        else:
+            # Next run is tomorrow at 04:29
+            next_time = (now + timedelta(days=1)).replace(hour=4, minute=29, second=0, microsecond=0)
+            
+        if next_time.date() == now.date():
+            return f"Today {next_time.strftime('%H:%M')}"
+        else:
+            return f"Tomorrow {next_time.strftime('%H:%M')}"
+    
+    elif workflow_name == 'accuwx_europe':
+        # Runs at 28 minutes past hours: 04, 10, 16, 22 UTC  
+        hours = [4, 10, 16, 22]
+        minute = 28
+        
+        next_hour = None
+        for hour in hours:
+            if hour > current_hour or (hour == current_hour and minute > current_minute):
+                next_hour = hour
+                break
+        
+        if next_hour is not None:
+            next_time = now.replace(hour=next_hour, minute=minute, second=0, microsecond=0)
+        else:
+            # Next run is tomorrow at 04:28
+            next_time = (now + timedelta(days=1)).replace(hour=4, minute=28, second=0, microsecond=0)
+            
+        if next_time.date() == now.date():
+            return f"Today {next_time.strftime('%H:%M')}"
+        else:
+            return f"Tomorrow {next_time.strftime('%H:%M')}"
+    
+    elif workflow_name == 'mrms':
+        # Runs every 5 minutes at: 01,06,11,16,21,26,31,36,41,46,51,56
+        minutes = [1, 6, 11, 16, 21, 26, 31, 36, 41, 46, 51, 56]
+        
+        next_minute = None
+        for minute in minutes:
+            if minute > current_minute:
+                next_minute = minute
+                break
+        
+        if next_minute is not None:
+            next_time = now.replace(minute=next_minute, second=0, microsecond=0)
+        else:
+            # Next run is next hour at minute 01
+            next_time = (now + timedelta(hours=1)).replace(minute=1, second=0, microsecond=0)
+            
+        time_diff = (next_time - now).total_seconds() / 60
+        if time_diff <= 60:
+            return f"In {int(time_diff)} min"
+        else:
+            return "Every 5 minutes"
+    
+    elif workflow_name == 'drone_weather':
+        # Runs at minute 10 of every hour
+        minute = 10
+        
+        if minute > current_minute:
+            next_time = now.replace(minute=minute, second=0, microsecond=0)
+        else:
+            next_time = (now + timedelta(hours=1)).replace(minute=minute, second=0, microsecond=0)
+            
+        time_diff = (next_time - now).total_seconds() / 60
+        if time_diff <= 60:
+            return f"In {int(time_diff)} min"
+        else:
+            return "Hourly"
+    
+    else:
+        return "Unknown schedule"
+
+
+def get_dynamic_next_run(workflow_name):
+    """Calculate next run time based on actual cron schedules"""
+    import subprocess
+    from datetime import datetime, timedelta
+    
+    # Get current UTC time
+    now = datetime.utcnow()
+    current_hour = now.hour
+    current_minute = now.minute
+    
+    if workflow_name == 'global_wrf':
+        # Runs at minutes 01 of hours: 06,07,08,09,11,13,15,16,17,18,20,22
+        hours = [6, 7, 8, 9, 11, 13, 15, 16, 17, 18, 20, 22]
+        minute = 1
+        
+        # Find next scheduled hour
+        next_hour = None
+        for hour in hours:
+            if hour > current_hour or (hour == current_hour and minute > current_minute):
+                next_hour = hour
+                break
+        
+        if next_hour is not None:
+            next_time = now.replace(hour=next_hour, minute=minute, second=0, microsecond=0)
+            if next_time <= now:
+                next_time += timedelta(days=1)
+        else:
+            # Next run is tomorrow at first hour (06:01)
+            next_time = (now + timedelta(days=1)).replace(hour=6, minute=1, second=0, microsecond=0)
+            
+        if next_time.date() == now.date():
+            return f"Today {next_time.strftime('%H:%M')}"
+        else:
+            return f"Tomorrow {next_time.strftime('%H:%M')}"
+    
+    elif workflow_name == 'accuwx_asia':
+        # Runs at 29 minutes past hours: 04, 10, 16, 22 UTC
+        hours = [4, 10, 16, 22]
+        minute = 29
+        
+        next_hour = None
+        for hour in hours:
+            if hour > current_hour or (hour == current_hour and minute > current_minute):
+                next_hour = hour
+                break
+        
+        if next_hour is not None:
+            next_time = now.replace(hour=next_hour, minute=minute, second=0, microsecond=0)
+        else:
+            # Next run is tomorrow at 04:29
+            next_time = (now + timedelta(days=1)).replace(hour=4, minute=29, second=0, microsecond=0)
+            
+        if next_time.date() == now.date():
+            return f"Today {next_time.strftime('%H:%M')}"
+        else:
+            return f"Tomorrow {next_time.strftime('%H:%M')}"
+    
+    elif workflow_name == 'accuwx_europe':
+        # Runs at 28 minutes past hours: 04, 10, 16, 22 UTC  
+        hours = [4, 10, 16, 22]
+        minute = 28
+        
+        next_hour = None
+        for hour in hours:
+            if hour > current_hour or (hour == current_hour and minute > current_minute):
+                next_hour = hour
+                break
+        
+        if next_hour is not None:
+            next_time = now.replace(hour=next_hour, minute=minute, second=0, microsecond=0)
+        else:
+            # Next run is tomorrow at 04:28
+            next_time = (now + timedelta(days=1)).replace(hour=4, minute=28, second=0, microsecond=0)
+            
+        if next_time.date() == now.date():
+            return f"Today {next_time.strftime('%H:%M')}"
+        else:
+            return f"Tomorrow {next_time.strftime('%H:%M')}"
+    
+    elif workflow_name == 'mrms':
+        # Runs every 5 minutes at: 01,06,11,16,21,26,31,36,41,46,51,56
+        minutes = [1, 6, 11, 16, 21, 26, 31, 36, 41, 46, 51, 56]
+        
+        next_minute = None
+        for minute in minutes:
+            if minute > current_minute:
+                next_minute = minute
+                break
+        
+        if next_minute is not None:
+            next_time = now.replace(minute=next_minute, second=0, microsecond=0)
+        else:
+            # Next run is next hour at minute 01
+            next_time = (now + timedelta(hours=1)).replace(minute=1, second=0, microsecond=0)
+            
+        time_diff = (next_time - now).total_seconds() / 60
+        if time_diff <= 60:
+            return f"In {int(time_diff)} min"
+        else:
+            return "Every 5 minutes"
+    
+    elif workflow_name == 'drone_weather':
+        # Runs at minute 10 of every hour
+        minute = 10
+        
+        if minute > current_minute:
+            next_time = now.replace(minute=minute, second=0, microsecond=0)
+        else:
+            next_time = (now + timedelta(hours=1)).replace(minute=minute, second=0, microsecond=0)
+            
+        time_diff = (next_time - now).total_seconds() / 60
+        if time_diff <= 60:
+            return f"In {int(time_diff)} min"
+        else:
+            return "Hourly"
+    
+    else:
+        return "Unknown schedule"
+
+
 
 # Generate the complete dashboard data
 dashboard_data = {
