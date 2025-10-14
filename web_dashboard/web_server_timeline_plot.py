@@ -45,9 +45,9 @@ def generate_plotly_html(grouped_jobs, data_metadata, jobs_in_window):
               '#3F51B5', '#FF6F00', '#00C853', '#D500F9', '#FF3D00']
     color_idx = 0
     
-    # Set time window: 40 hours ago to 4 hours ago (36 hours total)
-    end_time = datetime.now() - timedelta(hours=4)
-    start_time = end_time - timedelta(hours=36)
+    # Set time window: 48 hours ago to now (48 hours total)
+    end_time = datetime.now()
+    start_time = end_time - timedelta(hours=48)
     
     # Calculate average cores for each job group for sorting
     job_core_stats = {}
@@ -179,7 +179,7 @@ def generate_plotly_html(grouped_jobs, data_metadata, jobs_in_window):
 
         var layout = {{
             title: {{
-                text: 'Cluster Job Usage Timeline (36-hour window)',
+                text: 'Cluster Job Usage Timeline (48-hour window)',
                 x: 0.5,
                 xanchor: 'center'
             }},
@@ -254,8 +254,8 @@ def generate_timeline_plot(json_file_path, output_file_path):
         grouped_jobs[normalized_name]['original_names'].append(job_name)
     
     # Count jobs in time window
-    end_time = datetime.now() - timedelta(hours=4)
-    start_time = end_time - timedelta(hours=36)
+    end_time = datetime.now()
+    start_time = end_time - timedelta(hours=48)
     
     jobs_in_window = sum(1 for job_group in grouped_jobs.values() 
                         for run in job_group['runs_detail'] 

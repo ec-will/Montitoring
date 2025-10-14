@@ -47,8 +47,15 @@ if python3 dashboard_cluster_usage.py > /tmp/cluster_usage_update_output.log 2>&
     log_message "Cluster usage data generated successfully"
     
     # Push to server
-    if scp dashboard_cluster_usage.json will@rcity2.cottay.net:/srv/www/earthcast/ >> "$LOG_FILE" 2>&1; then
-        log_message "Cluster usage data deployed to server successfully"
+    if scp dashboard_cluster_usage.json will@rcity2.cottay.net:/srv/www/earthcast >> "$LOG_FILE" 2>&1; then
+        
+        # Push to secondary server
+        if scp dashboard_cluster_usage.json will@ect-hpc.wx-farms.com:/srv/www/earthcast >> "$LOG_FILE" 2>&1; then
+            log_message "Cluster usage data deployed to ect-hpc.wx-farms.com successfully"
+        else
+            log_message "WARNING: Failed to deploy cluster usage data to ect-hpc.wx-farms.com"
+        fi
+        log_message "Cluster usage data deployed to rcity2.cottay.net successfully"
         
         # Log summary info
         FILE_SIZE=$(ls -lh dashboard_cluster_usage.json | awk '{print $5}')
@@ -56,7 +63,7 @@ if python3 dashboard_cluster_usage.py > /tmp/cluster_usage_update_output.log 2>&
         CORE_HOURS=$(cat dashboard_cluster_usage.json | jq '.job_usage.summary.total_core_hours' 2>/dev/null || echo "unknown")
         log_message "Update complete: $FILE_SIZE, $UNIQUE_JOBS unique jobs, $CORE_HOURS core-hours"
     else
-        log_message "ERROR: Failed to deploy cluster usage data to server"
+        log_message "ERROR: Failed to deploy cluster usage data to primary server (rcity2.cottay.net)"
     fi
 else
     log_message "ERROR: Failed to generate cluster usage data"
