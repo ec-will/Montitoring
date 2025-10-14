@@ -368,6 +368,25 @@
             } else {
                 html += '<div class="no-data">No upcoming jobs scheduled</div>';
             }
+            
+            // Add frequent jobs section
+            if (dashboardData.frequent_jobs && dashboardData.frequent_jobs.length > 0) {
+                html += '<h3 style="margin-top: 20px; color: #666;">Frequent Jobs</h3>';
+                html += '<table style="font-size: 0.9em;">';
+                html += '<thead><tr><th>Job</th><th>Frequency</th><th>Next Run</th></tr></thead>';
+                html += '<tbody>';
+                
+                dashboardData.frequent_jobs.forEach(job => {
+                    html += '<tr>';
+                    html += '<td><strong>' + job.name + '</strong></td>';
+                    html += '<td style="color: #888;">' + job.frequency + '</td>';
+                    html += '<td>' + job.next_run + '</td>';
+                    html += '</tr>';
+                });
+                
+                html += '</tbody></table>';
+            }
+            
             html += '</div>';
 
             // Node Status (right column)
@@ -421,6 +440,19 @@
             html += '</div>';
             
             html += '</div>'; // End two-column container
+            // Cluster Usage Timeline section
+            html += '<div class="section">';
+            html += '<h2>Cluster Usage Timeline</h2>';
+            html += '<div style="margin-bottom: 15px; padding: 10px; background-color: #f0f8ff; border-radius: 5px; border: 1px solid #ddd;">';
+            html += '<p><strong>Interactive 48-hour job timeline.</strong> ';
+            html += 'Hover for details.</p>';
+            html += '</div>';
+            html += '<iframe src="cluster_usage_timeline.html" ';
+            html += 'style="width: 100%; height: 800px; border: 1px solid #ddd; border-radius: 8px;" ';
+            html += 'frameborder="0"></iframe>';
+            html += '</div>';
+
+
 
             // System Metrics section
             html += '<div class="section">';

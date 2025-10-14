@@ -46,15 +46,22 @@ if python3 update_dashboard.py > /tmp/dashboard_update_output.log 2>&1; then
     log_message "Dashboard data generated successfully"
     
     # Push to server using scp (more reliable than rsync for single files)
-    if scp dashboard_data.json will@rcity2.cottay.net:/srv/www/earthcast/ >> "$LOG_FILE" 2>&1; then
-        log_message "Dashboard data deployed to server successfully"
+    if scp dashboard_data.json will@rcity2.cottay.net:/srv/www/earthcast >> "$LOG_FILE" 2>&1; then
+        
+        # Push to secondary server
+        if scp dashboard_data.json will@ect-hpc.wx-farms.com:/srv/www/earthcast >> "$LOG_FILE" 2>&1; then
+            log_message "Dashboard data deployed to ect-hpc.wx-farms.com successfully"
+        else
+            log_message "WARNING: Failed to deploy dashboard data to ect-hpc.wx-farms.com"
+        fi
+        log_message "Dashboard data deployed to rcity2.cottay.net successfully"
         
         # Log summary info
         PBS_COUNT=$(cat dashboard_data.json | jq '.pbs_jobs | length' 2>/dev/null || echo "unknown")
         WORKFLOW_COUNT=$(cat dashboard_data.json | jq '.workflows | keys | length' 2>/dev/null || echo "unknown")
         log_message "Update complete: $PBS_COUNT PBS jobs, $WORKFLOW_COUNT workflows"
     else
-        log_message "ERROR: Failed to deploy dashboard data to server"
+        log_message "ERROR: Failed to deploy dashboard data to primary server (rcity2.cottay.net)"
     fi
 else
     log_message "ERROR: Failed to generate dashboard data"
