@@ -25,4 +25,5 @@ test_*
 
 # Generated data files
 dashboard_data.json
-transfers.json
+log_monitoring/*.json
+log_monitoring/*.log
