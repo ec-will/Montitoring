@@ -25,3 +25,4 @@ test_*
 
 # Generated data files
 dashboard_data.json
+transfers.json

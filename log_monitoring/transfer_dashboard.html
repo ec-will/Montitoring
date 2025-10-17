@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transfer Log Dashboard</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #d0d0d0;
+            color: #333;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .header .title-section {
+            text-align: center;
+            flex-grow: 1;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+
+        .header .time-info {
+            margin-top: 10px;
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .controls {
+            background: white;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .controls label {
+            font-weight: 600;
+            margin-right: 5px;
+        }
+
+        .controls select, .controls input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .controls button {
+            padding: 8px 16px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .controls button:hover {
+            background: #5a67d8;
+        }
+
+        .stats {
+            background: white;
+            margin: 10px 0;
+            padding: 12px;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 8px;
+        }
+
+        .stat-card {
+            text-align: center;
+            padding: 8px 6px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            border-left: 3px solid #667eea;
+        }
+
+        .stat-number {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 2px;
+        }
+
+        .stat-label {
+            font-size: 0.75em;
+            color: #666;
+        }
+
+        .section {
+            background: white;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .section h2 {
+            margin: 0 0 15px 0;
+            color: #2c3e50;
+            font-size: 1.3em;
+            font-weight: 600;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 12px;
+            line-height: 1.2;
+            background: white;
+        }
+
+        th {
+            text-align: left;
+            padding: 6px 10px;
+            background-color: #f1f2f6;
+            font-weight: 600;
+            color: #2c3e50;
+            border-bottom: 2px solid #ddd;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        td {
+            padding: 4px 10px;
+            border-bottom: 1px solid #eee;
+            vertical-align: middle;
+        }
+
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .transfer-row {
+            cursor: pointer;
+        }
+
+        .transfer-row.success-row {
+            border-left: 4px solid #28a745;
+        }
+
+        .transfer-row.info-row {
+            border-left: 4px solid #17a2b8;
+            display: none;
+        }
+
+        .transfer-row.info-row.visible {
+            display: table-row;
+        }
+
+        .transfer-row.error-row {
+            border-left: 4px solid #dc3545;
+        }
+
+        .pid-group {
+            border-top: 2px solid #ccc;
+            background-color: #fafafa;
+        }
+
+        .pid-group:first-child {
+            border-top: none;
+            background-color: transparent;
+        }
+
+        .file-name {
+            font-weight: 600;
+        }
+
+        .duration {
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .args {
+            max-width: 200px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: block;
+        }
+
+        .caller {
+            max-width: 150px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: block;
+        }
+
+        .method-tag {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            display: inline-block;
+            background-color: #e3f2fd;
+            color: #1565c0;
+        }
+
+        .transfer-details {
+            display: none;
+            padding: 0;
+        }
+
+        .transfer-details.expanded {
+            display: table-row;
+        }
+
+        .details-cell {
+            padding: 10px 12px;
+            background-color: #f8f9fa;
+            border-left: 4px solid #667eea;
+        }
+
+        .detail-info {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .log-message {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            font-size: 12px;
+            background-color: #ffffff;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+
+        .detail-tag {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .status {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .status.info { background-color: #d1ecf1; color: #0c5460; }
+        .status.success { background-color: #d4edda; color: #155724; }
+        .status.error { background-color: #f8d7da; color: #721c24; }
+        .status.warning { background-color: #fff3cd; color: #856404; }
+
+        .detail-tag.script { background-color: #e3f2fd; color: #1565c0; }
+        .detail-tag.method { background-color: #f3e5f5; color: #7b1fa2; }
+        .detail-tag.file { background-color: #e8f5e8; color: #2e7d32; }
+        .detail-tag.destination { background-color: #fff3e0; color: #f57c00; }
+        .detail-tag.caller { background-color: #fce4ec; color: #c2185b; }
+        .detail-tag.args { background-color: #f3e5f5; color: #7b1fa2; }
+
+        .no-data {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 40px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .search-highlight {
+            background-color: #ffeb3b;
+            padding: 2px 4px;
+            border-radius: 2px;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .header {
+                padding: 15px;
+            }
+
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .controls > div {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            table {
+                font-size: 11px;
+            }
+
+            th, td {
+                padding: 3px 6px;
+            }
+
+            .args {
+                max-width: 120px;
+            }
+
+            .caller {
+                max-width: 100px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="title-section">
+            <h1>Transfer Log Dashboard</h1>
+            <div class="time-info" id="header-time">Loading...</div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <div>
+            <label for="log-type-filter">Filter by type:</label>
+            <select id="log-type-filter">
+                <option value="">All Types</option>
+                <option value="INFO">INFO</option>
+                <option value="SUCCESS">SUCCESS</option>
+                <option value="ERROR">ERROR</option>
+                <option value="WARNING">WARNING</option>
+            </select>
+        </div>
+        
+
+        <div>
+            <label for="search-input">Search:</label>
+            <input type="text" id="search-input" placeholder="Search files, destinations, etc...">
+        </div>
+
+        <div>
+            <button onclick="clearFilters()">Clear Filters</button>
+            <button onclick="refreshData()">Refresh</button>
+        </div>
+    </div>
+
+    <div class="stats" id="stats-section">
+        <!-- Stats will be populated by JavaScript -->
+    </div>
+
+    <div class="section">
+        <h2>File Transfers</h2>
+        <div id="transfers-container">
+            <div class="no-data">Loading transfer data...</div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <div>Last updated: <span id="timestamp"></span></div>
+        <div style="margin-top: 5px;">
+            Click any transfer row to view complete details including caller, args, method, and all related log entries • Use filters to narrow results
+        </div>
+    </div>
+
+    <script>
+        let transferData = [];
+        let allTransfers = [];
+        let filteredTransfers = [];
+
+        async function loadTransferData() {
+            try {
+                // Strong cache-busting with timestamp and random number
+                const cacheBuster = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                const response = await fetch(`transfers.json?cb=${cacheBuster}`, {
+                    cache: 'no-cache',
+                    headers: {
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0'
+                    }
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                transferData = await response.json();
+                
+                // Flatten sessions into individual transfers
+                allTransfers = [];
+                transferData.forEach(session => {
+                    session.entries.forEach(entry => {
+                        allTransfers.push({
+                            ...entry,
+                            pid: session.pid
+                        });
+                    });
+                });
+                
+                // Sort by timestamp descending (newest first) to handle PIDs from different machines
+                // PIDs from different machines can overlap, so time is the reliable sort order
+                allTransfers.sort((a, b) => {
+                    return new Date(b.timestamp) - new Date(a.timestamp);  // Newest timestamps first
+                });
+                
+                applyFilters();
+                updateStats();
+                renderTransfers();
+                updateTimestamp();
+            } catch (error) {
+                console.error('Error loading transfer data:', error);
+                document.getElementById('transfers-container').innerHTML = 
+                    '<div class="no-data">Error loading transfer data: ' + error.message + '</div>';
+                throw error; // Re-throw for refresh button handling
+            }
+        }
+
+        function applyFilters() {
+            const logTypeFilter = document.getElementById('log-type-filter').value;
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+
+            filteredTransfers = allTransfers.filter(transfer => {
+                // Log type filter
+                if (logTypeFilter && transfer.log_type !== logTypeFilter) {
+                    return false;
+                }
+
+                // Search filter
+                if (searchTerm) {
+                    const searchableText = [
+                        transfer.message,
+                        transfer.file,
+                        transfer.destination,
+                        transfer.script,
+                        transfer.caller,
+                        transfer.args
+                    ].filter(Boolean).join(' ').toLowerCase();
+                    
+                    if (!searchableText.includes(searchTerm)) {
+                        return false;
+                    }
+                }
+
+                return true;
+            });
+        }
+
+        function updateStats() {
+            const statsSection = document.getElementById('stats-section');
+            
+            if (filteredTransfers.length === 0) {
+                statsSection.innerHTML = '';
+                return;
+            }
+
+            const logEntries = filteredTransfers.length;
+            
+            // Count by log type
+            const typeCounts = {};
+            filteredTransfers.forEach(transfer => {
+                typeCounts[transfer.log_type] = (typeCounts[transfer.log_type] || 0) + 1;
+            });
+
+            let statsHtml = `
+                <div class="stat-card">
+                    <div class="stat-number">${logEntries}</div>
+                    <div class="stat-label">Log Entries</div>
+                </div>
+            `;
+
+            // Add type counts
+            Object.entries(typeCounts).forEach(([type, count]) => {
+                statsHtml += `
+                    <div class="stat-card">
+                        <div class="stat-number">${count}</div>
+                        <div class="stat-label">${type}</div>
+                    </div>
+                `;
+            });
+
+            statsSection.innerHTML = statsHtml;
+        }
+
+        function renderTransfers() {
+            const container = document.getElementById('transfers-container');
+            
+            if (filteredTransfers.length === 0) {
+                container.innerHTML = '<div class="no-data">No file transfers match your filters</div>';
+                return;
+            }
+
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Status</th>
+                            <th>File</th>
+                            <th>Destination</th>
+                            <th>Duration</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            // Track PIDs we've seen to add separators for new PID groups
+            const seenPids = new Set();
+            
+            filteredTransfers.forEach((transfer, index) => {
+                const rowClass = `transfer-row ${transfer.log_type.toLowerCase()}-row`;
+                const searchTerm = document.getElementById('search-input').value.toLowerCase();
+                
+                // Add PID group separator for new PIDs (first occurrence of each PID)
+                let pidGroupClass = '';
+                if (!seenPids.has(transfer.pid)) {
+                    pidGroupClass = ' pid-group';
+                    seenPids.add(transfer.pid);
+                }
+                
+                // Highlight search terms in filename
+                let fileName = transfer.file || '';
+                if (searchTerm && transfer.file) {
+                    const regex = new RegExp(`(${searchTerm})`, 'gi');
+                    fileName = transfer.file.replace(regex, '<span class="search-highlight">$1</span>');
+                }
+                
+                const duration = calculateTransferDuration(transfer.pid);
+                
+                html += `
+                    <tr class="${rowClass}${pidGroupClass}" data-pid="${transfer.pid}" data-index="${index}" onclick="handleRowClick(${index}, '${transfer.log_type}', ${transfer.pid})">
+                        <td>${formatTime(transfer.timestamp)}</td>
+                        <td><span class="status ${transfer.log_type.toLowerCase()}">${transfer.log_type}</span></td>
+                        <td><span class="file-name">${fileName}</span></td>
+                        <td>${transfer.destination || ''}</td>
+                        <td><span class="duration">${duration}</span></td>
+                    </tr>
+                    <tr class="transfer-details" id="details-${index}">
+                        <td colspan="5" class="details-cell">
+                            ${renderTransferDetails(transfer)}
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                    </tbody>
+                </table>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            const dateStr = date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric'
+            });
+            const timeStr = date.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            });
+            return `${dateStr} ${timeStr}`;
+        }
+
+        function calculateTransferDuration(pid) {
+            // Get all entries for this PID
+            const pidEntries = filteredTransfers.filter(t => t.pid === pid);
+            
+            if (pidEntries.length <= 1) {
+                return 'N/A';
+            }
+            
+            // Get timestamps and sort them
+            const timestamps = pidEntries.map(entry => new Date(entry.timestamp)).sort((a, b) => a - b);
+            const startTime = timestamps[0];
+            const endTime = timestamps[timestamps.length - 1];
+            
+            // Calculate duration in seconds
+            const durationMs = endTime - startTime;
+            const durationSeconds = Math.round(durationMs / 1000);
+            
+            if (durationSeconds < 60) {
+                return `${durationSeconds}s`;
+            } else if (durationSeconds < 3600) {
+                const minutes = Math.floor(durationSeconds / 60);
+                const seconds = durationSeconds % 60;
+                return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+            } else {
+                const hours = Math.floor(durationSeconds / 3600);
+                const minutes = Math.floor((durationSeconds % 3600) / 60);
+                return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+            }
+        }
+
+        function renderTransferDetails(transfer) {
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            
+            // Get all entries for the same PID to show complete transfer info
+            const pidEntries = filteredTransfers.filter(t => t.pid === transfer.pid);
+            
+            let detailTags = '';
+            
+            // Add script info
+            if (transfer.script) {
+                detailTags += `<span class="detail-tag script">Script: ${transfer.script}</span>`;
+            }
+            
+            // Add method info
+            if (transfer.method) {
+                detailTags += `<span class="detail-tag method">Method: ${transfer.method}</span>`;
+            }
+            
+            // Add caller info from INFO entry if available
+            const infoEntry = pidEntries.find(e => e.log_type === 'INFO');
+            if (infoEntry && infoEntry.caller) {
+                detailTags += `<span class="detail-tag caller">Caller: ${infoEntry.caller}</span>`;
+            }
+            
+            // Add args info from INFO entry if available
+            if (infoEntry && infoEntry.args) {
+                detailTags += `<span class="detail-tag args">Args: ${infoEntry.args}</span>`;
+            }
+
+            // Show all log messages for this PID
+            let allMessages = '';
+            pidEntries.forEach(entry => {
+                let message = entry.message;
+                if (searchTerm) {
+                    const regex = new RegExp(`(${searchTerm})`, 'gi');
+                    message = entry.message.replace(regex, '<span class="search-highlight">$1</span>');
+                }
+                
+                allMessages += `
+                    <div class="log-message" style="margin-bottom: 5px;">
+                        <strong>[${entry.log_type}]</strong> ${message}
+                    </div>
+                `;
+            });
+
+            return `
+                <div class="detail-info">
+                    ${detailTags}
+                </div>
+                <div style="margin-top: 10px;">
+                    ${allMessages}
+                </div>
+            `;
+        }
+
+        function handleRowClick(index, logType, pid) {
+            // Toggle details for the clicked row - shows all related info
+            toggleTransferDetails(index);
+        }
+
+        function toggleTransferDetails(index) {
+            const element = document.getElementById(`details-${index}`);
+            if (element) {
+                element.classList.toggle('expanded');
+            }
+        }
+
+        function clearFilters() {
+            document.getElementById('log-type-filter').value = '';
+            document.getElementById('search-input').value = '';
+            applyFilters();
+            updateStats();
+            renderTransfers();
+        }
+
+        function refreshData() {
+            // Show loading indicator
+            document.getElementById('transfers-container').innerHTML = 
+                '<div class="no-data">Refreshing data...</div>';
+            
+            // Update refresh button to show loading state
+            const refreshBtn = event ? event.target : document.querySelector('button[onclick="refreshData()"]');
+            const originalText = refreshBtn ? refreshBtn.textContent : '';
+            if (refreshBtn) {
+                refreshBtn.textContent = 'Refreshing...';
+                refreshBtn.disabled = true;
+            }
+            
+            // Load data and restore button
+            loadTransferData().then(() => {
+                if (refreshBtn) {
+                    refreshBtn.textContent = originalText || 'Refresh';
+                    refreshBtn.disabled = false;
+                }
+            }).catch(() => {
+                if (refreshBtn) {
+                    refreshBtn.textContent = originalText || 'Refresh';
+                    refreshBtn.disabled = false;
+                }
+            });
+        }
+
+        function updateTimestamp() {
+            const now = new Date();
+            const utcString = now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+            document.getElementById('timestamp').textContent = utcString;
+            document.getElementById('header-time').textContent = utcString;
+        }
+
+        // Event listeners
+        document.getElementById('log-type-filter').addEventListener('change', () => {
+            applyFilters();
+            updateStats();
+            renderTransfers();
+        });
+
+
+        document.getElementById('search-input').addEventListener('input', () => {
+            applyFilters();
+            updateStats();
+            renderTransfers();
+        });
+
+        // Load data when page loads
+        loadTransferData();
+
+        // Update timestamp every minute
+        setInterval(updateTimestamp, 60000);
+        
+        // Auto-refresh data every 5 minutes
+        setInterval(loadTransferData, 300000);
+    </script>
+</body>
+</html>
