@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EarthCast HPC Dashboard</title>
+    <title>EarthCast HPC</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
@@ -18,18 +18,18 @@
             align-items: center;
             justify-content: center;
             position: relative;
-            margin-bottom: 30px;
-            padding: 20px;
+            margin-bottom: 25px;
+            padding: 15px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            border-radius: 10px;
+            border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
 
         .header .logo {
             position: absolute;
-            left: 20px;
-            height: 60px;
+            left: 15px;
+            height: 45px;
             width: auto;
         }
 
@@ -40,7 +40,7 @@
 
         .header h1 {
             margin: 0;
-            font-size: 2.5em;
+            font-size: 2.1em;
             font-weight: 300;
         }
 
@@ -58,6 +58,33 @@
             font-size: 14px;
             color: #1565c0;
             border: 1px solid #bbdefb;
+        }
+
+        .nav-bar {
+            text-align: left;
+            margin-bottom: 20px;
+            padding: 10px 15px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+
+        .nav-link {
+            display: inline-block;
+            padding: 6px 12px;
+            margin: 0 5px 0 0;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: 500;
+            font-size: 13px;
+            transition: background-color 0.2s;
+        }
+
+        .nav-link:hover {
+            background-color: #0056b3;
+            text-decoration: none;
         }
 
         .section {
@@ -219,13 +246,17 @@
     <div class="header">
         <img src="earthcast-logo.png" alt="EarthCast Logo" class="logo">
         <div class="title-section">
-            <h1>EarthCast HPC Dashboard</h1>
+            <h1>EarthCast HPC</h1>
             <div class="time-info" id="header-time">Loading...</div>
         </div>
     </div>
 
     <div class="info-bar">
         Dashboard updates every 5 minutes • Click workflow rows to view logs • Click PBS job rows to view details
+    </div>
+
+    <div class="nav-bar">
+        <a href="transfers.html" class="nav-link">📁 Transfer Logs</a>
     </div>
 
     <div id="content">

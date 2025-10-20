@@ -18,6 +18,7 @@ LOG_PATTERN = re.compile(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[(\w+)\]: (\d+
 # Patterns for extracting details from messages
 CALLED_BY_PATTERN = re.compile(r'(\S+) called by: (\S+) with args: (.+)')
 TRANSFER_PATTERN = re.compile(r'(\S+) (scp|cp|rsync) (.+)')
+SFTP_PATTERN = re.compile(r"(\S+) echo 'put ([^\s]+) ([^']+)' \| sshpass -p \S+ sftp (\S+)")
 AZ_STORAGE_PATTERN = re.compile(r'(\S+) az storage blob upload.*--name ([^\s]+).*--file ([^\s]+)')
 
 
@@ -31,6 +32,15 @@ def parse_message(message: str) -> Dict[str, str]:
         details['script'] = called_match.group(1)
         details['caller'] = called_match.group(2)
         details['args'] = called_match.group(3)
+        return details
+    
+    # Check for SFTP pattern
+    sftp_match = SFTP_PATTERN.match(message)
+    if sftp_match:
+        details['script'] = sftp_match.group(1)
+        details['method'] = 'sftp'
+        details['file'] = sftp_match.group(2)
+        details['destination'] = sftp_match.group(3) + ' (' + sftp_match.group(4) + ')'
         return details
     
     # Check for az storage pattern first

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Transfer Log Dashboard</title>
+    <title>EarthCast HPC Egress</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
@@ -18,12 +18,19 @@
             align-items: center;
             justify-content: center;
             position: relative;
-            margin-bottom: 30px;
-            padding: 20px;
+            margin-bottom: 25px;
+            padding: 15px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            border-radius: 10px;
+            border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .header .logo {
+            position: absolute;
+            left: 15px;
+            height: 45px;
+            width: auto;
         }
 
         .header .title-section {
@@ -33,7 +40,7 @@
 
         .header h1 {
             margin: 0;
-            font-size: 2.5em;
+            font-size: 2.1em;
             font-weight: 300;
         }
 
@@ -41,6 +48,33 @@
             margin-top: 10px;
             font-size: 1.1em;
             opacity: 0.9;
+        }
+
+        .nav-bar {
+            text-align: left;
+            margin-bottom: 20px;
+            padding: 10px 15px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+
+        .nav-link {
+            display: inline-block;
+            padding: 6px 12px;
+            margin: 0 5px 0 0;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: 500;
+            font-size: 13px;
+            transition: background-color 0.2s;
+        }
+
+        .nav-link:hover {
+            background-color: #0056b3;
+            text-decoration: none;
         }
 
         .controls {
@@ -83,32 +117,32 @@
 
         .stats {
             background: white;
-            margin: 10px 0;
-            padding: 12px;
-            border-radius: 6px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin: 4px 0;
+            padding: 4px;
+            border-radius: 4px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            gap: 8px;
+            grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+            gap: 3px;
         }
 
         .stat-card {
             text-align: center;
-            padding: 8px 6px;
+            padding: 3px 2px;
             background-color: #f8f9fa;
-            border-radius: 4px;
-            border-left: 3px solid #667eea;
+            border-radius: 2px;
+            border-left: 2px solid #667eea;
         }
 
         .stat-number {
-            font-size: 1.3em;
+            font-size: 0.9em;
             font-weight: 600;
             color: #667eea;
-            margin-bottom: 2px;
+            margin-bottom: 0px;
         }
 
         .stat-label {
-            font-size: 0.75em;
+            font-size: 0.6em;
             color: #666;
         }
 
@@ -348,10 +382,15 @@
 </head>
 <body>
     <div class="header">
+        <img src="earthcast-logo.png" alt="EarthCast Logo" class="logo">
         <div class="title-section">
-            <h1>Transfer Log Dashboard</h1>
+            <h1>EarthCast HPC Egress</h1>
             <div class="time-info" id="header-time">Loading...</div>
         </div>
+    </div>
+
+    <div class="nav-bar">
+        <a href="index.html" class="nav-link">← Back to Main Dashboard</a>
     </div>
 
     <div class="controls">
