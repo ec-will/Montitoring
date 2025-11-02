@@ -207,27 +207,23 @@ def get_file_age(filepath):
         return 999
 
 def get_last_run_from_log(logfile):
-    """Extract last run time from log filename"""
+    """Get last run time from log file modification time"""
     try:
-        basename = os.path.basename(logfile)
-        # Pattern: run_master.globalXXZ.XXhr.XXXXXXXXXX.log or accuwx_*_seq.XX.XXXXXXXXXX.log
-        match = re.search(r'\.(\d{10})\.log$', basename)
-        if match:
-            timestamp_str = match.group(1)
-            # Convert Unix timestamp to readable format
-            timestamp = int(timestamp_str)
-            dt = datetime.utcfromtimestamp(timestamp)
-            age_minutes = int((time.time() - timestamp) / 60)
-            if age_minutes < 1:
-                return f'Just now', age_minutes
-            elif age_minutes < 60:
-                return f'{age_minutes}m ago', age_minutes
-            elif age_minutes < 1440:
-                hours = age_minutes // 60
-                return f'{hours}h ago', age_minutes
-            else:
-                days = age_minutes // 1440
-                return f'{days}d ago', age_minutes
+        # Use file modification time as the actual last run time
+        file_mtime = os.path.getmtime(logfile)
+        age_seconds = time.time() - file_mtime
+        age_minutes = int(age_seconds / 60)
+        
+        if age_minutes < 1:
+            return 'Just now', age_minutes
+        elif age_minutes < 60:
+            return f'{age_minutes}m ago', age_minutes
+        elif age_minutes < 1440:
+            hours = age_minutes // 60
+            return f'{hours}h ago', age_minutes
+        else:
+            days = age_minutes // 1440
+            return f'{days}d ago', age_minutes
     except:
         pass
     return 'N/A', 999
