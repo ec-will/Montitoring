@@ -167,26 +167,13 @@ def update_wrf_cycle_status(workflow_data, cycle_num):
                 file_count = len(wrfout_files)
                 workflow_data['file_count'] = file_count
                 
-                # Extract completion timestamp from log filename (YYYYMMDDHH format)
-                log_basename = os.path.basename(latest_log)
-                match_time = re.search(r'(\d{10})\.log$', log_basename)
-                if match_time:
-                    log_timestamp_str = match_time.group(1)
-                    # Parse YYYYMMDDHH to timestamp
-                    try:
-                        log_dt = datetime.strptime(log_timestamp_str, '%Y%m%d%H')
-                        log_timestamp = int(log_dt.replace(tzinfo=None).timestamp())
-                        now_ts = time.time()
-                        age_seconds = now_ts - log_timestamp
-                        age_minutes = int(age_seconds / 60)
-                        workflow_data['status']['age_minutes'] = age_minutes
-                        workflow_data['status']['last_modified'] = log_timestamp
-                    except:
-                        workflow_data['status']['age_minutes'] = 0
-                        workflow_data['status']['last_modified'] = int(time.time())
-                else:
-                    workflow_data['status']['age_minutes'] = 0
-                    workflow_data['status']['last_modified'] = int(time.time())
+                # Use actual file modification time (when job completed)
+                log_mtime = os.path.getmtime(latest_log)
+                now_ts = time.time()
+                age_seconds = now_ts - log_mtime
+                age_minutes = int(age_seconds / 60)
+                workflow_data['status']['age_minutes'] = age_minutes
+                workflow_data['status']['last_modified'] = int(log_mtime)
                 
                 try:
                     with open(latest_log, 'r') as f:
