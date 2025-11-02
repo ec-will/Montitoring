@@ -252,7 +252,7 @@
     </div>
 
     <div class="info-bar">
-        Dashboard updates every 5 minutes • Click workflow rows to view logs • Click PBS job rows to view details
+        Dashboard updates every 5 minutes • Click model run rows to view logs • Click PBS job rows to view details
     </div>
 
     <div class="nav-bar">
@@ -308,9 +308,9 @@
                 document.getElementById('header-time').textContent = `${dashboardData.system.current_time} on ${dashboardData.system.current_date}`;
             }
 
-            // Workflows section
+            // Model Runs section
             html += '<div class="section">';
-            html += '<h2>Workflows</h2>';
+            html += '<h2>Model Runs</h2>';
             
             if (dashboardData.workflows && Object.keys(dashboardData.workflows).length > 0) {
                 html += '<table>';
