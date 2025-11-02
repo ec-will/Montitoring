@@ -320,7 +320,7 @@
                 for (const [workflowName, workflow] of Object.entries(dashboardData.workflows)) {
                     const status = typeof workflow.status === 'object' ? workflow.status.status : workflow.status;
                     const message = workflow.status && workflow.status.message ? workflow.status.message : '';
-                    const ageMinutes = workflow.status && workflow.status.age_minutes !== undefined ? workflow.status.age_minutes : null;
+                    const lastRun = workflow.last_run || 'N/A';
                     const fileCount = workflow.file_count || 0;
                     const logFile = workflow.log_file || 'No log file';
                     const nextRun = workflow.next_run || 'Not scheduled';
@@ -329,7 +329,7 @@
                     html += '<td><strong>' + workflowName + '</strong></td>';
                     html += '<td><span class="status ' + status.toLowerCase() + '">' + status + '</span></td>';
                     html += '<td>' + message + '</td>';
-                    html += '<td>' + (ageMinutes !== null ? formatAge(ageMinutes) : 'N/A') + '</td>';
+                    html += '<td>' + lastRun + '</td>';
                     html += '<td>' + nextRun + '</td>';
                     html += '<td>' + (fileCount ? fileCount : '') + '</td>';
                     html += '<td>' + logFile + '</td>';
