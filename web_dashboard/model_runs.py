@@ -14,10 +14,7 @@ import time
 from datetime import datetime, timedelta
 
 # Base directory for HPC user
-HOME_DIR = os.getenv('HPC_HOME', os.path.expanduser('~'))
-if 'erthch01' not in HOME_DIR:
-    HOME_DIR = '/e/08/erthch01'
-
+HOME_DIR = os.path.expanduser('~')
 LOGS_DIR = os.path.join(HOME_DIR, 'logs', 'wrf')
 DATA_DIR = os.path.join(HOME_DIR, 'data')
 
@@ -189,6 +186,9 @@ def get_wrfout_count(job_name, cycle_num, logfile):
         elif 'accuwx_europe' in job_name:
             cycle_dir = os.path.join(DATA_DIR, 'accuwx_plus', f'{date_str}{cycle_num}')
         else:
+            return 0
+        
+        if not os.path.exists(cycle_dir):
             return 0
         
         wrfout_files = glob.glob(os.path.join(cycle_dir, 'wrfout*'))
