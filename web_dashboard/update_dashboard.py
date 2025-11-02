@@ -206,6 +206,32 @@ def get_file_age(filepath):
     except:
         return 999
 
+def get_last_run_from_log(logfile):
+    """Extract last run time from log filename"""
+    try:
+        basename = os.path.basename(logfile)
+        # Pattern: run_master.globalXXZ.XXhr.XXXXXXXXXX.log or accuwx_*_seq.XX.XXXXXXXXXX.log
+        match = re.search(r'\.(\d{10})\.log$', basename)
+        if match:
+            timestamp_str = match.group(1)
+            # Convert Unix timestamp to readable format
+            timestamp = int(timestamp_str)
+            dt = datetime.utcfromtimestamp(timestamp)
+            age_minutes = int((time.time() - timestamp) / 60)
+            if age_minutes < 1:
+                return f'Just now', age_minutes
+            elif age_minutes < 60:
+                return f'{age_minutes}m ago', age_minutes
+            elif age_minutes < 1440:
+                hours = age_minutes // 60
+                return f'{hours}h ago', age_minutes
+            else:
+                days = age_minutes // 1440
+                return f'{days}d ago', age_minutes
+    except:
+        pass
+    return 'N/A', 999
+
 def update_wrf_cycle_status(workflow_data, cycle_num):
     """Update status and file count for a specific WRF cycle (00, 06, 12, 18)"""
     try:
@@ -224,6 +250,10 @@ def update_wrf_cycle_status(workflow_data, cycle_num):
                 file_count = len(wrfout_files)
                 workflow_data['file_count'] = file_count
                 
+                # Get last run time from log filename
+                last_run_str, age = get_last_run_from_log(latest_log)
+                workflow_data['last_run'] = last_run_str
+                
                 # Update status from log analysis
                 status_info = analyze_log_status(latest_log)
                 workflow_data['status'] = status_info
@@ -231,10 +261,10 @@ def update_wrf_cycle_status(workflow_data, cycle_num):
                 # Override status based on file count for WRF jobs
                 if file_count > 30:
                     workflow_data['status']['status'] = 'success'
-                    workflow_data['status']['message'] = f'Completed with {file_count} output files'
+                    workflow_data['status']['message'] = 'Completed successfully'
                 elif file_count > 0:
                     workflow_data['status']['status'] = 'running'
-                    workflow_data['status']['message'] = f'Running ({file_count} files generated)'
+                    workflow_data['status']['message'] = 'Currently running'
     except Exception as e:
         pass
 
@@ -252,6 +282,7 @@ def get_workflows():
                 'status': {'status': 'unknown', 'message': 'Status unknown'},
                 'file_count': 0,
                 'log_file': None,
+                'last_run': 'N/A',
                 'next_run': get_dynamic_next_run(variant_name),
                 'cycle': cycle_num
             }
@@ -276,6 +307,7 @@ def get_workflows():
             'status': {'status': 'unknown', 'message': 'Status unknown'},
             'file_count': 0,
             'log_file': None,
+            'last_run': 'N/A',
             'next_run': get_dynamic_next_run('accuwx_asia')
         }
         
@@ -284,6 +316,10 @@ def get_workflows():
             latest_log = asia_logs[0]
             model_runs['accuwx_asia']['log_file'] = os.path.basename(latest_log)
             model_runs['accuwx_asia']['status'] = analyze_log_status(latest_log)
+            
+            # Get last run time
+            last_run_str, _ = get_last_run_from_log(latest_log)
+            model_runs['accuwx_asia']['last_run'] = last_run_str
             
             # Count wrfout files
             match = re.search(r'accuwx_asia_seq\.(\d{2})\.(\d{10})\.log', latest_log)
@@ -307,6 +343,7 @@ def get_workflows():
             'status': {'status': 'unknown', 'message': 'Status unknown'},
             'file_count': 0,
             'log_file': None,
+            'last_run': 'N/A',
             'next_run': get_dynamic_next_run('accuwx_europe')
         }
         
@@ -315,6 +352,10 @@ def get_workflows():
             latest_log = euro_logs[0]
             model_runs['accuwx_europe']['log_file'] = os.path.basename(latest_log)
             model_runs['accuwx_europe']['status'] = analyze_log_status(latest_log)
+            
+            # Get last run time
+            last_run_str, _ = get_last_run_from_log(latest_log)
+            model_runs['accuwx_europe']['last_run'] = last_run_str
             
             # Count wrfout files
             match = re.search(r'accuwx_euro_seq\.(\d{2})\.(\d{10})\.log', latest_log)
