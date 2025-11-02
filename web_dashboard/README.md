@@ -65,11 +65,11 @@ A real-time web dashboard for monitoring HPC cluster workflows, PBS jobs, and sy
 
 ## Data Sources
 
-- **Workflows**: Via `../scripts/dashboard_json.sh --json`
-- **PBS Jobs**: Direct `qstat -f` parsing
+- **Workflows**: Direct log file reading from `/e/08/erthch01/logs/wrf/` with Python analysis
+- **PBS Jobs**: Direct `qstat -f` and `mqstat -f` parsing
 - **Node Status**: Custom `ectnodes` command
 - **System Metrics**: Standard Linux utilities
-- **Log Files**: Recursive search in `/e/08/erthch01/logs/`
+- **Log Files**: Direct file reading in `/e/08/erthch01/logs/`
 
 ## Security
 
