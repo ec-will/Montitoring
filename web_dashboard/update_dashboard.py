@@ -148,6 +148,53 @@ def get_system_info():
         'recent_log_activity': log_count
     }
 
+def analyze_log_status(logfile):
+    """Analyze log file to determine workflow status"""
+    try:
+        if not os.path.isfile(logfile):
+            return {'status': 'no_log', 'message': 'No log file found', 'details': ''}
+        
+        with open(logfile, 'r') as f:
+            tail_content = f.read()
+        
+        # Check for clear failure indicators
+        if re.search(r'killed|abort|fatal|exception', tail_content, re.IGNORECASE):
+            error_msg = re.search(r'(killed|abort|fatal|exception)[^\n]*', tail_content, re.IGNORECASE)
+            return {'status': 'failed', 'message': 'Job failed', 'details': error_msg.group(0) if error_msg else ''}
+        
+        # Check for external data waiting
+        if re.search(r'404.*not found.*(nomads|ncep|gfs)', tail_content, re.IGNORECASE):
+            age = get_file_age(logfile)
+            if age < 30:
+                return {'status': 'waiting_data', 'message': 'Waiting for GFS data from NOAA', 'details': 'External data delay'}
+            else:
+                return {'status': 'failed', 'message': 'Data unavailable', 'details': 'Upstream data timeout'}
+        
+        # Check for success
+        if re.search(r'^exit$|cycle.*complete|processing.*complete', tail_content, re.MULTILINE):
+            return {'status': 'success', 'message': 'Job completed successfully', 'details': 'Normal completion'}
+        
+        # Check for active running state
+        age = get_file_age(logfile)
+        if age < 5 and re.search(r'still waiting|qsub|date.*UTC|PBS', tail_content, re.IGNORECASE):
+            return {'status': 'running', 'message': 'Job currently running', 'details': 'Active processing'}
+        
+        # Default running or unknown
+        if age < 30:
+            return {'status': 'running', 'message': 'Job appears to be running', 'details': 'Recent activity detected'}
+        else:
+            return {'status': 'unknown', 'message': 'Status unclear', 'details': 'No recent activity'}
+    except:
+        return {'status': 'unknown', 'message': 'Error analyzing log', 'details': ''}
+
+def get_file_age(filepath):
+    """Get file age in minutes"""
+    try:
+        file_time = os.path.getmtime(filepath)
+        return int((time.time() - file_time) / 60)
+    except:
+        return 999
+
 def update_wrf_cycle_status(workflow_data, cycle_num):
     """Update status and file count for a specific WRF cycle (00, 06, 12, 18)"""
     try:
@@ -167,75 +214,117 @@ def update_wrf_cycle_status(workflow_data, cycle_num):
                 file_count = len(wrfout_files)
                 workflow_data['file_count'] = file_count
                 
-                # Use actual file modification time (when job completed)
-                log_mtime = os.path.getmtime(latest_log)
-                now_ts = time.time()
-                age_seconds = now_ts - log_mtime
-                age_minutes = int(age_seconds / 60)
-                workflow_data['status']['age_minutes'] = age_minutes
-                workflow_data['status']['last_modified'] = int(log_mtime)
+                # Update status from log analysis
+                status_info = analyze_log_status(latest_log)
+                workflow_data['status'] = status_info
                 
-                try:
-                    with open(latest_log, 'r') as f:
-                        log_content = f.read()
-                    
-                    if 'SUCCESS' in log_content or 'successful' in log_content or file_count > 30:
-                        workflow_data['status']['status'] = 'success'
-                        workflow_data['status']['message'] = f'Completed with {file_count} output files'
-                    elif 'error' in log_content.lower() or 'failed' in log_content.lower():
-                        workflow_data['status']['status'] = 'failed'
-                        workflow_data['status']['message'] = 'Job failed'
-                    elif 'running' in log_content.lower() or file_count > 0:
-                        workflow_data['status']['status'] = 'running'
-                        workflow_data['status']['message'] = f'Running ({file_count} files generated)'
-                    else:
-                        workflow_data['status']['status'] = 'waiting'
-                        workflow_data['status']['message'] = 'Waiting to start'
-                except:
-                    pass
+                # Override status based on file count for WRF jobs
+                if file_count > 30:
+                    workflow_data['status']['status'] = 'success'
+                    workflow_data['status']['message'] = f'Completed with {file_count} output files'
+                elif file_count > 0:
+                    workflow_data['status']['status'] = 'running'
+                    workflow_data['status']['message'] = f'Running ({file_count} files generated)'
     except Exception as e:
         pass
 
 def get_workflows():
-    """Get model run status (WRF-based workflows only)"""
+    """Get model run status (WRF-based workflows only) - collect directly from logs"""
+    model_runs = {}
+    
     try:
-        output = subprocess.check_output(['../scripts/dashboard_json.sh', '--json'], stderr=subprocess.DEVNULL)
-        data = json.loads(output)
-        workflows = data.get('workflows', {})
-        
-        # Keep only WRF-based model runs
-        model_runs = {}
-        for name, wf in workflows.items():
-            if name in ['global_wrf', 'accuwx_asia', 'accuwx_europe']:
-                model_runs[name] = wf
-        
-        # Split global_wrf into 4 cycles
-        if 'global_wrf' in model_runs:
-            global_wrf = model_runs.pop('global_wrf')
-            for cycle in ['00Z', '06Z', '12Z', '18Z']:
-                variant_name = f'global_wrf_{cycle}'
-                model_runs[variant_name] = global_wrf.copy()
-                model_runs[variant_name]['next_run'] = get_dynamic_next_run(variant_name)
-                cycle_num = cycle.replace('Z', '')
-                model_runs[variant_name]['cycle'] = cycle_num
-                update_wrf_cycle_status(model_runs[variant_name], cycle_num)
-        
-        # Add next run times for accuwx
-        for workflow_name, workflow_data in model_runs.items():
-            if not workflow_name.startswith('global_wrf_'):
-                if workflow_name == 'accuwx_asia':
-                    workflow_data['next_run'] = get_dynamic_next_run('accuwx_asia')
-                elif workflow_name == 'accuwx_europe':
-                    workflow_data['next_run'] = get_dynamic_next_run('accuwx_europe')
+        # Process global WRF variants (00Z, 06Z, 12Z, 18Z)
+        for cycle in ['00Z', '06Z', '12Z', '18Z']:
+            variant_name = f'global_wrf_{cycle}'
+            cycle_num = cycle.replace('Z', '')
             
-            log_file = workflow_data.get('log_file')
-            if log_file:
-                log_content = get_workflow_log_content(log_file)
-                if log_content:
-                    workflow_data['log_content'] = log_content
-                else:
-                    workflow_data['log_content'] = f"Log file not found: {log_file}"
+            model_runs[variant_name] = {
+                'status': {'status': 'unknown', 'message': 'Status unknown'},
+                'file_count': 0,
+                'log_file': None,
+                'next_run': get_dynamic_next_run(variant_name),
+                'cycle': cycle_num
+            }
             
+            update_wrf_cycle_status(model_runs[variant_name], cycle_num)
+            
+            # Try to get log content
+            log_pattern = f'run_master.global{cycle_num}Z*.log'
+            log_dir = '/e/08/erthch01/logs/wrf'
+            log_files = sorted(glob.glob(f'{log_dir}/{log_pattern}'), reverse=True)
+            if log_files:
+                latest_log = log_files[0]
+                model_runs[variant_name]['log_file'] = os.path.basename(latest_log)
+                try:
+                    with open(latest_log, 'r') as f:
+                        content = f.read()
+                    model_runs[variant_name]['log_content'] = content[-500:] if len(content) > 500 else content
+                except:
+                    model_runs[variant_name]['log_content'] = 'Could not read log file'
+        
+        # Process AccuWeather Asia
+        model_runs['accuwx_asia'] = {
+            'status': {'status': 'unknown', 'message': 'Status unknown'},
+            'file_count': 0,
+            'log_file': None,
+            'next_run': get_dynamic_next_run('accuwx_asia')
+        }
+        
+        log_dir = '/e/08/erthch01/logs/wrf'
+        asia_logs = sorted(glob.glob(f'{log_dir}/accuwx_asia_seq*.log'), reverse=True)
+        if asia_logs:
+            latest_log = asia_logs[0]
+            model_runs['accuwx_asia']['log_file'] = os.path.basename(latest_log)
+            model_runs['accuwx_asia']['status'] = analyze_log_status(latest_log)
+            
+            # Count wrfout files
+            match = re.search(r'accuwx_asia_seq\.(\d{2})\.(\d{10})\.log', latest_log)
+            if match:
+                datetime_str = match.group(2)
+                date_str = datetime_str[:8]
+                cycle = match.group(1)
+                cycle_dir = f'/e/08/erthch01/data/accuwx_asia/{date_str}{cycle}'
+                wrfout_files = glob.glob(f'{cycle_dir}/wrfout*')
+                model_runs['accuwx_asia']['file_count'] = len(wrfout_files)
+            
+            try:
+                with open(latest_log, 'r') as f:
+                    content = f.read()
+                model_runs['accuwx_asia']['log_content'] = content[-500:] if len(content) > 500 else content
+            except:
+                model_runs['accuwx_asia']['log_content'] = 'Could not read log file'
+        
+        # Process AccuWeather Europe
+        model_runs['accuwx_europe'] = {
+            'status': {'status': 'unknown', 'message': 'Status unknown'},
+            'file_count': 0,
+            'log_file': None,
+            'next_run': get_dynamic_next_run('accuwx_europe')
+        }
+        
+        euro_logs = sorted(glob.glob(f'{log_dir}/accuwx_euro_seq*.log'), reverse=True)
+        if euro_logs:
+            latest_log = euro_logs[0]
+            model_runs['accuwx_europe']['log_file'] = os.path.basename(latest_log)
+            model_runs['accuwx_europe']['status'] = analyze_log_status(latest_log)
+            
+            # Count wrfout files
+            match = re.search(r'accuwx_euro_seq\.(\d{2})\.(\d{10})\.log', latest_log)
+            if match:
+                datetime_str = match.group(2)
+                date_str = datetime_str[:8]
+                cycle = match.group(1)
+                cycle_dir = f'/e/08/erthch01/data/accuwx_plus/{date_str}{cycle}'
+                wrfout_files = glob.glob(f'{cycle_dir}/wrfout*')
+                model_runs['accuwx_europe']['file_count'] = len(wrfout_files)
+            
+            try:
+                with open(latest_log, 'r') as f:
+                    content = f.read()
+                model_runs['accuwx_europe']['log_content'] = content[-500:] if len(content) > 500 else content
+            except:
+                model_runs['accuwx_europe']['log_content'] = 'Could not read log file'
+        
         return model_runs
     except Exception as e:
         print(f"Error getting model runs: {e}")
