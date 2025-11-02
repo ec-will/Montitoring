@@ -7,6 +7,16 @@ import os
 import glob
 from datetime import datetime, timedelta
 
+# Base directory for HPC user (defaults to /e/08/erthch01 for production)
+HOME_DIR = os.getenv('HPC_HOME', os.path.expanduser('~'))
+if 'erthch01' not in HOME_DIR:
+    # Fallback for production if $HPC_HOME not set
+    HOME_DIR = '/e/08/erthch01'
+
+LOGS_DIR = os.path.join(HOME_DIR, 'logs')
+WRF_LOGS_DIR = os.path.join(LOGS_DIR, 'wrf')
+DATA_DIR = os.path.join(HOME_DIR, 'data')
+
 def get_pbs_jobs():
     """Get PBS jobs with correct core calculation and wallclock time"""
     try:
@@ -55,7 +65,8 @@ def get_pbs_jobs():
 def get_node_status():
     """Get node status from ectnodes command"""
     try:
-        output = subprocess.check_output(['/e/08/erthch01/bin/ectnodes'], stderr=subprocess.DEVNULL).decode().strip()
+        ectnodes_path = os.path.join(HOME_DIR, 'bin', 'ectnodes')
+        output = subprocess.check_output([ectnodes_path], stderr=subprocess.DEVNULL).decode().strip()
         nodes = []
         for line in output.split('\n'):
             if 'Node Name' in line or '----' in line or 'TOTALS' in line or not line.strip():
@@ -92,7 +103,7 @@ def get_node_status():
 def find_log_file(log_filename):
     """Find a log file by searching recursively"""
     try:
-        output = subprocess.check_output(['find', '/e/08/erthch01/logs', '-name', log_filename, '-type', 'f'], 
+        output = subprocess.check_output(['find', LOGS_DIR, '-name', log_filename, '-type', 'f'], 
                                        stderr=subprocess.DEVNULL).decode().strip()
         if output:
             return output.split('\n')[0]
@@ -117,7 +128,7 @@ def get_system_info():
     uptime_output = subprocess.check_output(['uptime']).decode().strip()
     load_avg = uptime_output.split('load average: ')[1] if 'load average:' in uptime_output else 'N/A'
     
-    df_output = subprocess.check_output(['df', '-h', '/e/08/erthch01']).decode().split('\n')[1]
+    df_output = subprocess.check_output(['df', '-h', HOME_DIR]).decode().split('\n')[1]
     disk_parts = df_output.split()
     disk_usage = disk_parts[2] + '/' + disk_parts[1]
     disk_percent = int(disk_parts[4].replace('%', ''))
@@ -127,7 +138,7 @@ def get_system_info():
     
     log_count = 0
     try:
-        log_count = int(subprocess.check_output(['find', '/e/08/erthch01/logs', '-name', '*.log', '-mmin', '-60'], stderr=subprocess.DEVNULL).decode().count('\n'))
+        log_count = int(subprocess.check_output(['find', LOGS_DIR, '-name', '*.log', '-mmin', '-60'], stderr=subprocess.DEVNULL).decode().count('\n'))
     except:
         pass
     
@@ -199,8 +210,7 @@ def update_wrf_cycle_status(workflow_data, cycle_num):
     """Update status and file count for a specific WRF cycle (00, 06, 12, 18)"""
     try:
         log_pattern = f'run_master.global{cycle_num}Z*.log'
-        log_dir = '/e/08/erthch01/logs/wrf'
-        log_files = sorted(glob.glob(f'{log_dir}/{log_pattern}'), reverse=True)
+        log_files = sorted(glob.glob(os.path.join(WRF_LOGS_DIR, log_pattern)), reverse=True)
         
         if log_files:
             latest_log = log_files[0]
@@ -208,7 +218,7 @@ def update_wrf_cycle_status(workflow_data, cycle_num):
             if match:
                 datetime_str = match.group(2)
                 date_str = datetime_str[:8]
-                cycle_dir = f'/e/08/erthch01/data/intel/global_0.25deg/{date_str}{cycle_num}'
+                cycle_dir = os.path.join(DATA_DIR, 'intel', 'global_0.25deg', f'{date_str}{cycle_num}')
                 
                 wrfout_files = glob.glob(f'{cycle_dir}/wrfout*')
                 file_count = len(wrfout_files)
@@ -250,8 +260,7 @@ def get_workflows():
             
             # Try to get log content
             log_pattern = f'run_master.global{cycle_num}Z*.log'
-            log_dir = '/e/08/erthch01/logs/wrf'
-            log_files = sorted(glob.glob(f'{log_dir}/{log_pattern}'), reverse=True)
+            log_files = sorted(glob.glob(os.path.join(WRF_LOGS_DIR, log_pattern)), reverse=True)
             if log_files:
                 latest_log = log_files[0]
                 model_runs[variant_name]['log_file'] = os.path.basename(latest_log)
@@ -270,8 +279,7 @@ def get_workflows():
             'next_run': get_dynamic_next_run('accuwx_asia')
         }
         
-        log_dir = '/e/08/erthch01/logs/wrf'
-        asia_logs = sorted(glob.glob(f'{log_dir}/accuwx_asia_seq*.log'), reverse=True)
+        asia_logs = sorted(glob.glob(os.path.join(WRF_LOGS_DIR, 'accuwx_asia_seq*.log')), reverse=True)
         if asia_logs:
             latest_log = asia_logs[0]
             model_runs['accuwx_asia']['log_file'] = os.path.basename(latest_log)
@@ -283,7 +291,7 @@ def get_workflows():
                 datetime_str = match.group(2)
                 date_str = datetime_str[:8]
                 cycle = match.group(1)
-                cycle_dir = f'/e/08/erthch01/data/accuwx_asia/{date_str}{cycle}'
+                cycle_dir = os.path.join(DATA_DIR, 'accuwx_asia', f'{date_str}{cycle}')
                 wrfout_files = glob.glob(f'{cycle_dir}/wrfout*')
                 model_runs['accuwx_asia']['file_count'] = len(wrfout_files)
             
@@ -302,7 +310,7 @@ def get_workflows():
             'next_run': get_dynamic_next_run('accuwx_europe')
         }
         
-        euro_logs = sorted(glob.glob(f'{log_dir}/accuwx_euro_seq*.log'), reverse=True)
+        euro_logs = sorted(glob.glob(os.path.join(WRF_LOGS_DIR, 'accuwx_euro_seq*.log')), reverse=True)
         if euro_logs:
             latest_log = euro_logs[0]
             model_runs['accuwx_europe']['log_file'] = os.path.basename(latest_log)
@@ -314,7 +322,7 @@ def get_workflows():
                 datetime_str = match.group(2)
                 date_str = datetime_str[:8]
                 cycle = match.group(1)
-                cycle_dir = f'/e/08/erthch01/data/accuwx_plus/{date_str}{cycle}'
+                cycle_dir = os.path.join(DATA_DIR, 'accuwx_plus', f'{date_str}{cycle}')
                 wrfout_files = glob.glob(f'{cycle_dir}/wrfout*')
                 model_runs['accuwx_europe']['file_count'] = len(wrfout_files)
             
