@@ -236,6 +236,11 @@ def update_wrf_cycle_status(workflow_data, cycle_num):
         
         if log_files:
             latest_log = log_files[0]
+            
+            # Get last run time from log file modification time
+            last_run_str, age = get_last_run_from_log(latest_log)
+            workflow_data['last_run'] = last_run_str
+            
             match = re.search(r'run_master\.global\d{2}Z\.(\d{2})hr\.(\d{10})\.log', latest_log)
             if match:
                 datetime_str = match.group(2)
@@ -245,10 +250,6 @@ def update_wrf_cycle_status(workflow_data, cycle_num):
                 wrfout_files = glob.glob(f'{cycle_dir}/wrfout*')
                 file_count = len(wrfout_files)
                 workflow_data['file_count'] = file_count
-                
-                # Get last run time from log filename
-                last_run_str, age = get_last_run_from_log(latest_log)
-                workflow_data['last_run'] = last_run_str
                 
                 # Update status from log analysis
                 status_info = analyze_log_status(latest_log)
