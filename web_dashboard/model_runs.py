@@ -39,29 +39,28 @@ def parse_wrf_crontab():
         return {}
     
     wrf_jobs = {}
-    current_section = None
-    section_desc = None
     
     for line in output.split('\n'):
         line = line.strip()
         
-        # Detect WRF section headers (comments starting with #)
-        if line.startswith('# ') and 'WRF' in line:
-            section_desc = line[2:]  # Remove '# '
-            current_section = None
-            continue
-        
-        # Skip empty lines and other comments
+        # Skip empty lines and comments
         if not line or line.startswith('#'):
             continue
         
         # Parse cron lines: minute hour * * * command >& logfile
-        # Pattern: MM HH * * * ... >& path/to/logfile
-        cron_match = re.match(r'(\d+)\s+(\d+)\s+\*\s+\*\s+\*.*>& .*/([^\s/]+)\.log', line)
-        if not cron_match:
+        # Extract time and log basename
+        time_match = re.match(r'(\d+)\s+(\d+)\s+\*\s+\*\s+\*', line)
+        if not time_match:
             continue
         
-        minute_str, hour_str, log_basename = cron_match.groups()
+        minute_str, hour_str = time_match.groups()
+        
+        # Extract log basename from >& path/logname
+        log_match = re.search(r'>& .*/([^\s/>`]+)(?:\.log|`[^`]*`\.log)', line)
+        if not log_match:
+            continue
+        
+        log_basename = log_match.group(1)
         minute = int(minute_str)
         hour = int(hour_str)
         
@@ -94,7 +93,7 @@ def parse_wrf_crontab():
         wrf_jobs[job_name] = {
             'schedule': (hour, minute),
             'cycle': cycle_num,
-            'description': section_desc or 'WRF Job'
+            'description': 'WRF Job'
         }
     
     return wrf_jobs
