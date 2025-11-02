@@ -3,7 +3,9 @@ import subprocess
 import json
 import re
 import time
-from datetime import datetime
+import os
+import glob
+from datetime import datetime, timedelta
 
 def get_pbs_jobs():
     """Get PBS jobs with correct core calculation and wallclock time"""
@@ -16,7 +18,6 @@ def get_pbs_jobs():
     current_job = {}
     
     for line in output.split('\n'):
-        # Job ID
         job_match = re.match(r'Job Id: (\d+)\.', line)
         if job_match:
             if current_job.get('job_id'):
@@ -24,7 +25,6 @@ def get_pbs_jobs():
             current_job = {'job_id': job_match.group(1)}
             continue
             
-        # Job properties
         if 'Job_Name = ' in line:
             current_job['name'] = line.split(' = ', 1)[1]
         elif 'job_state = ' in line:
@@ -32,10 +32,7 @@ def get_pbs_jobs():
         elif 'resources_used.walltime = ' in line:
             current_job['walltime'] = line.split(' = ', 1)[1]
         elif 'Resource_List.nodes = ' in line:
-            # Only parse the first Resource_List.nodes line
             nodes_spec = line.split(' = ', 1)[1]
-            
-            # Parse like: 2:erthch:ppn=16
             node_match = re.match(r'(\d+):([^:]+):ppn=(\d+)', nodes_spec.strip())
             if node_match:
                 node_count = int(node_match.group(1))
@@ -43,12 +40,9 @@ def get_pbs_jobs():
                 current_job['nodes'] = node_count
                 current_job['tasks'] = node_count * ppn
     
-    # Add last job
     if current_job.get('job_id'):
         jobs.append(current_job)
     
-    
-    # Get detailed mqstat info for each job
     for job in jobs:
         try:
             mqstat_output = subprocess.check_output(['mqstat', '-f', job['job_id']], stderr=subprocess.DEVNULL).decode().strip()
@@ -59,20 +53,13 @@ def get_pbs_jobs():
     return jobs
 
 def get_node_status():
-    """Get node status from ectnodes command and parse into structured data"""
+    """Get node status from ectnodes command"""
     try:
         output = subprocess.check_output(['/e/08/erthch01/bin/ectnodes'], stderr=subprocess.DEVNULL).decode().strip()
-        
-        # Parse the ectnodes output into structured data
         nodes = []
-        lines = output.split('\n')
-        
-        for line in lines:
-            # Skip header lines and separator lines
+        for line in output.split('\n'):
             if 'Node Name' in line or '----' in line or 'TOTALS' in line or not line.strip():
                 continue
-            
-            # Parse node data lines like: "n619007         16     16     0        "
             parts = line.split()
             if len(parts) >= 4:
                 nodes.append({
@@ -82,7 +69,6 @@ def get_node_status():
                     'available': int(parts[3])
                 })
         
-        # Calculate totals
         total_cores = sum(node['total'] for node in nodes)
         used_cores = sum(node['used'] for node in nodes)
         available_cores = sum(node['available'] for node in nodes)
@@ -94,7 +80,7 @@ def get_node_status():
                 'used': used_cores,
                 'available': available_cores
             },
-            'raw_output': output  # Keep raw output as backup
+            'raw_output': output
         }
     except Exception as e:
         return {
@@ -106,11 +92,10 @@ def get_node_status():
 def find_log_file(log_filename):
     """Find a log file by searching recursively"""
     try:
-        # Use find to search recursively for the log file
         output = subprocess.check_output(['find', '/e/08/erthch01/logs', '-name', log_filename, '-type', 'f'], 
                                        stderr=subprocess.DEVNULL).decode().strip()
         if output:
-            return output.split('\n')[0]  # Return first match
+            return output.split('\n')[0]
     except:
         pass
     return None
@@ -163,28 +148,85 @@ def get_system_info():
         'recent_log_activity': log_count
     }
 
+def update_wrf_cycle_status(workflow_data, cycle_num):
+    """Update status and file count for a specific WRF cycle (00, 06, 12, 18)"""
+    try:
+        log_pattern = f'run_master.global{cycle_num}Z*.log'
+        log_dir = '/e/08/erthch01/logs/wrf'
+        log_files = sorted(glob.glob(f'{log_dir}/{log_pattern}'), reverse=True)
+        
+        if log_files:
+            latest_log = log_files[0]
+            match = re.search(r'run_master\.global\d{2}Z\.(\d{2})hr\.(\d{10})\.log', latest_log)
+            if match:
+                datetime_str = match.group(2)
+                date_str = datetime_str[:8]
+                cycle_dir = f'/e/08/erthch01/data/intel/global_0.25deg/{date_str}{cycle_num}'
+                
+                wrfout_files = glob.glob(f'{cycle_dir}/wrfout*')
+                file_count = len(wrfout_files)
+                workflow_data['file_count'] = file_count
+                
+                log_mtime = os.path.getmtime(latest_log)
+                now_ts = time.time()
+                age_seconds = now_ts - log_mtime
+                age_minutes = int(age_seconds / 60)
+                workflow_data['status']['age_minutes'] = age_minutes
+                workflow_data['status']['last_modified'] = int(log_mtime)
+                
+                try:
+                    with open(latest_log, 'r') as f:
+                        log_content = f.read()
+                    
+                    if 'SUCCESS' in log_content or 'successful' in log_content or file_count > 30:
+                        workflow_data['status']['status'] = 'success'
+                        workflow_data['status']['message'] = f'Completed with {file_count} output files'
+                    elif 'error' in log_content.lower() or 'failed' in log_content.lower():
+                        workflow_data['status']['status'] = 'failed'
+                        workflow_data['status']['message'] = 'Job failed'
+                    elif 'running' in log_content.lower() or file_count > 0:
+                        workflow_data['status']['status'] = 'running'
+                        workflow_data['status']['message'] = f'Running ({file_count} files generated)'
+                    else:
+                        workflow_data['status']['status'] = 'waiting'
+                        workflow_data['status']['message'] = 'Waiting to start'
+                except:
+                    pass
+    except Exception as e:
+        pass
+
 def get_workflows():
-    """Get workflow status from original script and add real log content"""
+    """Get model run status (WRF-based workflows only)"""
     try:
         output = subprocess.check_output(['../scripts/dashboard_json.sh', '--json'], stderr=subprocess.DEVNULL)
         data = json.loads(output)
         workflows = data.get('workflows', {})
         
-        # Add next run times and real log content
-        for workflow_name, workflow_data in workflows.items():
-            # Add next run times
-            if workflow_name == 'global_wrf':
-                workflow_data['next_run'] = get_dynamic_next_run('global_wrf')
-            elif workflow_name == 'accuwx_asia':
-                workflow_data['next_run'] = get_dynamic_next_run('accuwx_asia')
-            elif workflow_name == 'accuwx_europe':
-                workflow_data['next_run'] = get_dynamic_next_run('accuwx_europe')
-            elif workflow_name == 'mrms':
-                workflow_data['next_run'] = get_dynamic_next_run('mrms')
-            elif workflow_name == 'drone_weather':
-                workflow_data['next_run'] = get_dynamic_next_run('drone_weather')
+        # Keep only WRF-based model runs
+        model_runs = {}
+        for name, wf in workflows.items():
+            if name in ['global_wrf', 'accuwx_asia', 'accuwx_europe']:
+                model_runs[name] = wf
+        
+        # Split global_wrf into 4 cycles
+        if 'global_wrf' in model_runs:
+            global_wrf = model_runs.pop('global_wrf')
+            for cycle in ['00Z', '06Z', '12Z', '18Z']:
+                variant_name = f'global_wrf_{cycle}'
+                model_runs[variant_name] = global_wrf.copy()
+                model_runs[variant_name]['next_run'] = get_dynamic_next_run(variant_name)
+                cycle_num = cycle.replace('Z', '')
+                model_runs[variant_name]['cycle'] = cycle_num
+                update_wrf_cycle_status(model_runs[variant_name], cycle_num)
+        
+        # Add next run times for accuwx
+        for workflow_name, workflow_data in model_runs.items():
+            if not workflow_name.startswith('global_wrf_'):
+                if workflow_name == 'accuwx_asia':
+                    workflow_data['next_run'] = get_dynamic_next_run('accuwx_asia')
+                elif workflow_name == 'accuwx_europe':
+                    workflow_data['next_run'] = get_dynamic_next_run('accuwx_europe')
             
-            # Get real log content
             log_file = workflow_data.get('log_file')
             if log_file:
                 log_content = get_workflow_log_content(log_file)
@@ -193,39 +235,36 @@ def get_workflows():
                 else:
                     workflow_data['log_content'] = f"Log file not found: {log_file}"
             
-        return workflows
+        return model_runs
     except Exception as e:
-        print(f"Error getting workflows: {e}")
+        print(f"Error getting model runs: {e}")
         return {}
+
 def get_dynamic_next_run(workflow_name):
     """Calculate next run time based on actual cron schedules"""
-    import subprocess
-    from datetime import datetime, timedelta
-    
-    # Get current UTC time
     now = datetime.utcnow()
     current_hour = now.hour
     current_minute = now.minute
     
-    if workflow_name == 'global_wrf':
-        # Runs at minutes 01 of hours: 06,07,08,09,11,13,15,16,17,18,20,22
-        hours = [6, 7, 8, 9, 11, 13, 15, 16, 17, 18, 20, 22]
-        minute = 1
+    if workflow_name == 'global_wrf' or workflow_name.startswith('global_wrf_'):
+        cycle_schedule = {
+            'global_wrf_00Z': (1, 25),
+            'global_wrf_06Z': (7, 25),
+            'global_wrf_12Z': (13, 25),
+            'global_wrf_18Z': (19, 15)
+        }
         
-        # Find next scheduled hour
-        next_hour = None
-        for hour in hours:
-            if hour > current_hour or (hour == current_hour and minute > current_minute):
-                next_hour = hour
-                break
-        
-        if next_hour is not None:
-            next_time = now.replace(hour=next_hour, minute=minute, second=0, microsecond=0)
-            if next_time <= now:
-                next_time += timedelta(days=1)
+        if workflow_name in cycle_schedule:
+            target_hour, target_minute = cycle_schedule[workflow_name]
         else:
-            # Next run is tomorrow at first hour (06:01)
-            next_time = (now + timedelta(days=1)).replace(hour=6, minute=1, second=0, microsecond=0)
+            return "Unknown schedule"
+        
+        target_time = now.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
+        
+        if target_time > now:
+            next_time = target_time
+        else:
+            next_time = (now + timedelta(days=1)).replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
             
         if next_time.date() == now.date():
             return f"Today {next_time.strftime('%H:%M')}"
@@ -233,7 +272,6 @@ def get_dynamic_next_run(workflow_name):
             return f"Tomorrow {next_time.strftime('%H:%M')}"
     
     elif workflow_name == 'accuwx_asia':
-        # Runs at 29 minutes past hours: 04, 10, 16, 22 UTC
         hours = [4, 10, 16, 22]
         minute = 29
         
@@ -246,7 +284,6 @@ def get_dynamic_next_run(workflow_name):
         if next_hour is not None:
             next_time = now.replace(hour=next_hour, minute=minute, second=0, microsecond=0)
         else:
-            # Next run is tomorrow at 04:29
             next_time = (now + timedelta(days=1)).replace(hour=4, minute=29, second=0, microsecond=0)
             
         if next_time.date() == now.date():
@@ -255,7 +292,6 @@ def get_dynamic_next_run(workflow_name):
             return f"Tomorrow {next_time.strftime('%H:%M')}"
     
     elif workflow_name == 'accuwx_europe':
-        # Runs at 28 minutes past hours: 04, 10, 16, 22 UTC  
         hours = [4, 10, 16, 22]
         minute = 28
         
@@ -268,7 +304,6 @@ def get_dynamic_next_run(workflow_name):
         if next_hour is not None:
             next_time = now.replace(hour=next_hour, minute=minute, second=0, microsecond=0)
         else:
-            # Next run is tomorrow at 04:28
             next_time = (now + timedelta(days=1)).replace(hour=4, minute=28, second=0, microsecond=0)
             
         if next_time.date() == now.date():
@@ -276,62 +311,16 @@ def get_dynamic_next_run(workflow_name):
         else:
             return f"Tomorrow {next_time.strftime('%H:%M')}"
     
-    elif workflow_name == 'mrms':
-        # Runs every 5 minutes at: 01,06,11,16,21,26,31,36,41,46,51,56
-        minutes = [1, 6, 11, 16, 21, 26, 31, 36, 41, 46, 51, 56]
-        
-        next_minute = None
-        for minute in minutes:
-            if minute > current_minute:
-                next_minute = minute
-                break
-        
-        if next_minute is not None:
-            next_time = now.replace(minute=next_minute, second=0, microsecond=0)
-        else:
-            # Next run is next hour at minute 01
-            next_time = (now + timedelta(hours=1)).replace(minute=1, second=0, microsecond=0)
-            
-        time_diff = (next_time - now).total_seconds() / 60
-        if time_diff <= 60:
-            return f"In {int(time_diff)} min"
-        else:
-            return "Every 5 minutes"
-    
-    elif workflow_name == 'drone_weather':
-        # Runs at minute 10 of every hour
-        minute = 10
-        
-        if minute > current_minute:
-            next_time = now.replace(minute=minute, second=0, microsecond=0)
-        else:
-            next_time = (now + timedelta(hours=1)).replace(minute=minute, second=0, microsecond=0)
-            
-        time_diff = (next_time - now).total_seconds() / 60
-        if time_diff <= 60:
-            return f"In {int(time_diff)} min"
-        else:
-            return "Hourly"
-    
     else:
         return "Unknown schedule"
 
-
 def get_upcoming_jobs(hours_ahead=6):
     """Generate upcoming scheduled jobs for the next N hours"""
-    from datetime import datetime, timedelta
-    
     now = datetime.utcnow()
     end_time = now + timedelta(hours=hours_ahead)
     upcoming = []
     
-    # Define all cron schedules
     schedules = {
-        'global_wrf_status': {
-            'hours': [6, 7, 8, 9, 11, 13, 15, 16, 17, 18, 20, 22],
-            'minute': 1,
-            'name': 'global_wrf_status'
-        },
         'accuwx_asia_00Z': {'hours': [4], 'minute': 29, 'name': 'accuwx_asia_00Z'},
         'accuwx_asia_06Z': {'hours': [10], 'minute': 29, 'name': 'accuwx_asia_06Z'},
         'accuwx_asia_12Z': {'hours': [16], 'minute': 29, 'name': 'accuwx_asia_12Z'},
@@ -340,38 +329,22 @@ def get_upcoming_jobs(hours_ahead=6):
         'accuwx_europe_06Z': {'hours': [10], 'minute': 28, 'name': 'accuwx_europe_06Z'},
         'accuwx_europe_12Z': {'hours': [16], 'minute': 28, 'name': 'accuwx_europe_12Z'},
         'accuwx_europe_18Z': {'hours': [22], 'minute': 28, 'name': 'accuwx_europe_18Z'},
-        # 'drone_weather': {'hours': list(range(24)), 'minute': 10, 'name': 'drone_weather_seq'}, # Moved to frequent_jobs
-        # 'mrms_download': moved to frequent_jobs due to 5-minute frequency
     }
     
-    # Generate all upcoming job times
     current_time = now
     while current_time <= end_time:
         for job_id, schedule in schedules.items():
-            if 'minutes' in schedule:
-                # Special case for jobs that run multiple times per hour (like mrms)
-                for minute in schedule['minutes']:
-                    job_time = current_time.replace(minute=minute, second=0, microsecond=0)
-                    if job_time > now and job_time <= end_time:
-                        upcoming.append({
-                            'time': job_time,
-                            'name': schedule['name'],
-                            'formatted_time': format_upcoming_time(job_time, now)
-                        })
-            else:
-                # Regular hourly schedules
-                if current_time.hour in schedule['hours']:
-                    job_time = current_time.replace(minute=schedule['minute'], second=0, microsecond=0)
-                    if job_time > now and job_time <= end_time:
-                        upcoming.append({
-                            'time': job_time,
-                            'name': schedule['name'],
-                            'formatted_time': format_upcoming_time(job_time, now)
-                        })
+            if current_time.hour in schedule['hours']:
+                job_time = current_time.replace(minute=schedule['minute'], second=0, microsecond=0)
+                if job_time > now and job_time <= end_time:
+                    upcoming.append({
+                        'time': job_time,
+                        'name': schedule['name'],
+                        'formatted_time': format_upcoming_time(job_time, now)
+                    })
         
         current_time += timedelta(hours=1)
     
-    # Sort by time and return first 10
     upcoming.sort(key=lambda x: x['time'])
     return [{'name': job['name'], 'next_run': job['formatted_time']} for job in upcoming[:10]]
 
@@ -387,202 +360,6 @@ def format_upcoming_time(job_time, now):
         return f"Tomorrow {job_time.strftime('%H:%M')}"
     else:
         return job_time.strftime('%m/%d %H:%M')
-
-
-
-def get_upcoming_jobs(hours_ahead=6):
-    """Generate upcoming scheduled jobs for the next N hours"""
-    from datetime import datetime, timedelta
-    
-    now = datetime.utcnow()
-    end_time = now + timedelta(hours=hours_ahead)
-    upcoming = []
-    
-    # Define all cron schedules
-    schedules = {
-        'global_wrf_status': {
-            'hours': [6, 7, 8, 9, 11, 13, 15, 16, 17, 18, 20, 22],
-            'minute': 1,
-            'name': 'global_wrf_status'
-        },
-        'accuwx_asia_00Z': {'hours': [4], 'minute': 29, 'name': 'accuwx_asia_00Z'},
-        'accuwx_asia_06Z': {'hours': [10], 'minute': 29, 'name': 'accuwx_asia_06Z'},
-        'accuwx_asia_12Z': {'hours': [16], 'minute': 29, 'name': 'accuwx_asia_12Z'},
-        'accuwx_asia_18Z': {'hours': [22], 'minute': 29, 'name': 'accuwx_asia_18Z'},
-        'accuwx_europe_00Z': {'hours': [4], 'minute': 28, 'name': 'accuwx_europe_00Z'},
-        'accuwx_europe_06Z': {'hours': [10], 'minute': 28, 'name': 'accuwx_europe_06Z'},
-        'accuwx_europe_12Z': {'hours': [16], 'minute': 28, 'name': 'accuwx_europe_12Z'},
-        'accuwx_europe_18Z': {'hours': [22], 'minute': 28, 'name': 'accuwx_europe_18Z'},
-        # 'drone_weather': {'hours': list(range(24)), 'minute': 10, 'name': 'drone_weather_seq'}, # Moved to frequent_jobs
-        # 'mrms_download': moved to frequent_jobs due to 5-minute frequency
-    }
-    
-    # Generate all upcoming job times
-    current_time = now
-    while current_time <= end_time:
-        for job_id, schedule in schedules.items():
-            if 'minutes' in schedule:
-                # Special case for jobs that run multiple times per hour (like mrms)
-                for minute in schedule['minutes']:
-                    job_time = current_time.replace(minute=minute, second=0, microsecond=0)
-                    if job_time > now and job_time <= end_time:
-                        upcoming.append({
-                            'time': job_time,
-                            'name': schedule['name'],
-                            'formatted_time': format_upcoming_time(job_time, now)
-                        })
-            else:
-                # Regular hourly schedules
-                if current_time.hour in schedule['hours']:
-                    job_time = current_time.replace(minute=schedule['minute'], second=0, microsecond=0)
-                    if job_time > now and job_time <= end_time:
-                        upcoming.append({
-                            'time': job_time,
-                            'name': schedule['name'],
-                            'formatted_time': format_upcoming_time(job_time, now)
-                        })
-        
-        current_time += timedelta(hours=1)
-    
-    # Sort by time and return first 10
-    upcoming.sort(key=lambda x: x['time'])
-    return [{'name': job['name'], 'next_run': job['formatted_time']} for job in upcoming[:10]]
-
-def format_upcoming_time(job_time, now):
-    """Format upcoming job time for display"""
-    time_diff = (job_time - now).total_seconds() / 60
-    
-    if time_diff < 60:
-        return f"In {int(time_diff)} min"
-    elif job_time.date() == now.date():
-        return f"Today {job_time.strftime('%H:%M')}"
-    elif job_time.date() == (now + timedelta(days=1)).date():
-        return f"Tomorrow {job_time.strftime('%H:%M')}"
-    else:
-        return job_time.strftime('%m/%d %H:%M')
-
-
-
-def get_dynamic_next_run(workflow_name):
-    """Calculate next run time based on actual cron schedules"""
-    import subprocess
-    from datetime import datetime, timedelta
-    
-    # Get current UTC time
-    now = datetime.utcnow()
-    current_hour = now.hour
-    current_minute = now.minute
-    
-    if workflow_name == 'global_wrf':
-        # Runs at minutes 01 of hours: 06,07,08,09,11,13,15,16,17,18,20,22
-        hours = [6, 7, 8, 9, 11, 13, 15, 16, 17, 18, 20, 22]
-        minute = 1
-        
-        # Find next scheduled hour
-        next_hour = None
-        for hour in hours:
-            if hour > current_hour or (hour == current_hour and minute > current_minute):
-                next_hour = hour
-                break
-        
-        if next_hour is not None:
-            next_time = now.replace(hour=next_hour, minute=minute, second=0, microsecond=0)
-            if next_time <= now:
-                next_time += timedelta(days=1)
-        else:
-            # Next run is tomorrow at first hour (06:01)
-            next_time = (now + timedelta(days=1)).replace(hour=6, minute=1, second=0, microsecond=0)
-            
-        if next_time.date() == now.date():
-            return f"Today {next_time.strftime('%H:%M')}"
-        else:
-            return f"Tomorrow {next_time.strftime('%H:%M')}"
-    
-    elif workflow_name == 'accuwx_asia':
-        # Runs at 29 minutes past hours: 04, 10, 16, 22 UTC
-        hours = [4, 10, 16, 22]
-        minute = 29
-        
-        next_hour = None
-        for hour in hours:
-            if hour > current_hour or (hour == current_hour and minute > current_minute):
-                next_hour = hour
-                break
-        
-        if next_hour is not None:
-            next_time = now.replace(hour=next_hour, minute=minute, second=0, microsecond=0)
-        else:
-            # Next run is tomorrow at 04:29
-            next_time = (now + timedelta(days=1)).replace(hour=4, minute=29, second=0, microsecond=0)
-            
-        if next_time.date() == now.date():
-            return f"Today {next_time.strftime('%H:%M')}"
-        else:
-            return f"Tomorrow {next_time.strftime('%H:%M')}"
-    
-    elif workflow_name == 'accuwx_europe':
-        # Runs at 28 minutes past hours: 04, 10, 16, 22 UTC  
-        hours = [4, 10, 16, 22]
-        minute = 28
-        
-        next_hour = None
-        for hour in hours:
-            if hour > current_hour or (hour == current_hour and minute > current_minute):
-                next_hour = hour
-                break
-        
-        if next_hour is not None:
-            next_time = now.replace(hour=next_hour, minute=minute, second=0, microsecond=0)
-        else:
-            # Next run is tomorrow at 04:28
-            next_time = (now + timedelta(days=1)).replace(hour=4, minute=28, second=0, microsecond=0)
-            
-        if next_time.date() == now.date():
-            return f"Today {next_time.strftime('%H:%M')}"
-        else:
-            return f"Tomorrow {next_time.strftime('%H:%M')}"
-    
-    elif workflow_name == 'mrms':
-        # Runs every 5 minutes at: 01,06,11,16,21,26,31,36,41,46,51,56
-        minutes = [1, 6, 11, 16, 21, 26, 31, 36, 41, 46, 51, 56]
-        
-        next_minute = None
-        for minute in minutes:
-            if minute > current_minute:
-                next_minute = minute
-                break
-        
-        if next_minute is not None:
-            next_time = now.replace(minute=next_minute, second=0, microsecond=0)
-        else:
-            # Next run is next hour at minute 01
-            next_time = (now + timedelta(hours=1)).replace(minute=1, second=0, microsecond=0)
-            
-        time_diff = (next_time - now).total_seconds() / 60
-        if time_diff <= 60:
-            return f"In {int(time_diff)} min"
-        else:
-            return "Every 5 minutes"
-    
-    elif workflow_name == 'drone_weather':
-        # Runs at minute 10 of every hour
-        minute = 10
-        
-        if minute > current_minute:
-            next_time = now.replace(minute=minute, second=0, microsecond=0)
-        else:
-            next_time = (now + timedelta(hours=1)).replace(minute=minute, second=0, microsecond=0)
-            
-        time_diff = (next_time - now).total_seconds() / 60
-        if time_diff <= 60:
-            return f"In {int(time_diff)} min"
-        else:
-            return "Hourly"
-    
-    else:
-        return "Unknown schedule"
-
-
 
 # Generate the complete dashboard data
 dashboard_data = {
@@ -592,8 +369,8 @@ dashboard_data = {
     'node_status': get_node_status(),
     'upcoming_jobs': get_upcoming_jobs(6),
     'frequent_jobs': [
-        {'name': 'mrms_download', 'frequency': 'Every 5 minutes', 'next_run': get_dynamic_next_run('mrms')},
-        {'name': 'drone_weather_seq', 'frequency': 'Every hour', 'next_run': get_dynamic_next_run('drone_weather')}
+        {'name': 'mrms_download', 'frequency': 'Every 5 minutes', 'next_run': 'Every 5 min'},
+        {'name': 'drone_weather_seq', 'frequency': 'Every hour', 'next_run': 'Hourly'}
     ],
     'cron_summary': {
         'total_jobs': 53,
@@ -605,13 +382,12 @@ dashboard_data = {
 with open('dashboard_data.json', 'w') as f:
     json.dump(dashboard_data, f, indent=2)
 
-# Test the cores calculation and walltime
+# Debug output
 print("PBS Jobs with core counts and wallclock time:")
 for job in dashboard_data['pbs_jobs']:
     walltime = job.get('walltime', 'N/A')
     print(f"Job {job['job_id']}: {job.get('nodes', 'N/A')} nodes, {job.get('tasks', 'N/A')} cores, {walltime} elapsed")
 
-# Show log file locations found
 print(f"\nFound {len(dashboard_data['workflows'])} workflows:")
 for name, workflow in dashboard_data['workflows'].items():
     log_file = workflow.get('log_file', 'None')
@@ -619,7 +395,6 @@ for name, workflow in dashboard_data['workflows'].items():
     has_content = 'log_content' in workflow and not workflow['log_content'].startswith('Log file not found')
     print(f"  {name}: {file_count} files, log: {'✓' if has_content else '✗'}")
 
-# Show node status summary
 node_data = dashboard_data['node_status']
 if 'error' not in node_data:
     totals = node_data['totals']
