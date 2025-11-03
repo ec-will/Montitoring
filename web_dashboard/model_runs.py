@@ -90,6 +90,7 @@ def parse_wrf_crontab():
         wrf_jobs[job_name] = {
             'schedule': (hour, minute),
             'cycle': cycle_num,
+            'log_basename': log_basename,  # Store the log file basename from crontab
             'description': 'WRF Job'
         }
     
@@ -168,65 +169,60 @@ def analyze_log_status(logfile):
 
 
 def get_wrfout_count(job_name, cycle_num, logfile):
-    """Count wrfout files for a job.
+    """Count wrfout files for a job by extracting working directory from log.
     
-    Extracts actual runtime directory from log file contents to handle cases
-    where log filename timestamp differs from actual job runtime.
+    Dynamically finds the working directory from log file contents (WRFHOME, cd commands)
+    and counts wrfout files there. No hardcoded paths.
     """
     try:
         # Read log file to find actual working directory
         with open(logfile, 'r') as f:
             log_content = f.read()
         
-        # Extract working directory from log (e.g., WRFHOME or cd command)
-        # Patterns: "setenv WRFHOME /path/YYYYMMDDHH" or similar
-        dir_match = None
-        if 'global_wrf' in job_name:
-            # Global WRF: look for global_0.25deg/YYYYMMDDHH
-            dir_match = re.search(r'global_0\.25deg/(\d{10})', log_content)
-        elif 'accuwx_asia' in job_name:
-            # AccuWX Asia: look for accuwx_asia/YYYYMMDDHH
-            dir_match = re.search(r'accuwx_asia/(\d{10})', log_content)
-        elif 'accuwx_europe' in job_name:
-            # AccuWX Europe: look for accuwx_euro/YYYYMMDDHH
-            dir_match = re.search(r'accuwx_euro/(\d{10})', log_content)
+        # Extract working directory from log file
+        # Look for patterns like:
+        # - "setenv WRFHOME /path/to/workdir"
+        # - "cd /path/to/workdir"
+        # - "mkdir -p /path/to/workdir"
         
-        if not dir_match:
+        working_dir = None
+        
+        # Try different patterns to find the working directory
+        patterns = [
+            r'setenv\s+WRFHOME\s+(\S+)',  # setenv WRFHOME /path
+            r'cd\s+(\S+/\d{10})\s*$',     # cd /path/YYYYMMDDHH
+            r'mkdir\s+-p\s+(\S+/\d{10})', # mkdir -p /path/YYYYMMDDHH
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, log_content, re.MULTILINE)
+            if match:
+                working_dir = match.group(1)
+                break
+        
+        if not working_dir or not os.path.exists(working_dir):
             return 0
         
-        datetime_str = dir_match.group(1)
-        
-        # Construct the actual cycle directory path
-        if 'global_wrf' in job_name:
-            cycle_dir = os.path.join(DATA_DIR, 'intel', 'global_0.25deg', datetime_str)
-        elif 'accuwx_asia' in job_name:
-            cycle_dir = os.path.join(DATA_DIR, 'accuwx_asia', datetime_str)
-        elif 'accuwx_europe' in job_name:
-            cycle_dir = os.path.join(DATA_DIR, 'accuwx_euro', datetime_str)
-        else:
-            return 0
-        
-        if not os.path.exists(cycle_dir):
-            return 0
-        
-        wrfout_files = glob.glob(os.path.join(cycle_dir, 'wrfout*'))
+        # Count wrfout files in the working directory
+        wrfout_files = glob.glob(os.path.join(working_dir, 'wrfout*'))
         return len(wrfout_files)
     except:
         return 0
 
 
-def get_job_status(job_name, cycle_num):
-    """Get status for a specific WRF job."""
+def get_job_status(job_name, log_basename, cycle_num):
+    """Get status for a specific WRF job.
+    
+    Args:
+        job_name: Job identifier (e.g., 'global_wrf_00Z')
+        log_basename: Log file basename from crontab (e.g., 'run_master.global00Z.36hr')
+        cycle_num: Cycle number (e.g., '00')
+    """
     try:
-        # Build log file pattern based on job name
-        if 'global_wrf' in job_name:
-            log_pattern = f'run_master.global{cycle_num}Z*.log'
-        elif 'accuwx_asia' in job_name:
-            log_pattern = f'accuwx_asia_seq.{cycle_num}.*.log'
-        elif 'accuwx_europe' in job_name:
-            log_pattern = f'accuwx_euro_seq.{cycle_num}.*.log'
-        else:
-            return None
+        # Build log file pattern from basename extracted from crontab
+        # The crontab logs use a timestamp in the filename, so we search for
+        # log_basename followed by any date/time and .log extension
+        log_pattern = f'{log_basename}*.log'
         
         # Find latest log file
         log_files = sorted(glob.glob(os.path.join(LOGS_DIR, log_pattern)), reverse=True)
@@ -312,9 +308,10 @@ def get_wrf_model_runs():
     for job_name, config in wrf_jobs_config.items():
         cycle_num = config['cycle']
         schedule = config['schedule']
+        log_basename = config['log_basename']
         
         # Get job status
-        job_status = get_job_status(job_name, cycle_num)
+        job_status = get_job_status(job_name, log_basename, cycle_num)
         
         if job_status:
             model_runs[job_name] = {
