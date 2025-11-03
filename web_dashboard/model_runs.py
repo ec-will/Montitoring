@@ -245,11 +245,13 @@ def get_job_status(job_name, log_basename, cycle_num):
         # Get last run time
         last_run_str, age = get_last_run_from_log(latest_log)
         
-        # Override status based on file count for WRF jobs
-        if file_count > 30:
+        # Override status based on file count for WRF jobs, but only if log shows completion
+        if file_count > 30 and status_info['status'] in ['success', 'unknown']:
+            # Only mark as success if log analysis already suggests completion or unclear state
             status_info['status'] = 'success'
             status_info['message'] = 'Completed successfully'
-        elif file_count > 0:
+        elif file_count > 0 and status_info['status'] == 'unknown':
+            # Only override unknown status with running if files exist
             status_info['status'] = 'running'
             status_info['message'] = 'Currently running'
         
