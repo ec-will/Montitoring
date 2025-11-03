@@ -210,10 +210,32 @@ def format_upcoming_time(job_time, now):
     else:
         return job_time.strftime('%m/%d %H:%M')
 
+# Get workflows and sort by last_run time (most recent first)
+workflows = get_workflows()
+
+# Sort workflows by converting last_run strings to comparable values
+def get_sort_key(workflow):
+    """Convert last_run string to minutes for sorting."""
+    last_run = workflow.get('last_run', 'N/A')
+    if last_run == 'Just now':
+        return 0
+    elif 'm ago' in last_run:
+        return int(last_run.split('m')[0])
+    elif 'h ago' in last_run:
+        return int(last_run.split('h')[0]) * 60
+    elif 'd ago' in last_run:
+        return int(last_run.split('d')[0]) * 1440
+    else:
+        return 999999  # Put N/A at the end
+
+sorted_workflows = {}
+for name in sorted(workflows.keys(), key=lambda k: get_sort_key(workflows[k])):
+    sorted_workflows[name] = workflows[name]
+
 # Generate the complete dashboard data
 dashboard_data = {
     'system': get_system_info(),
-    'workflows': get_workflows(),
+    'workflows': sorted_workflows,
     'pbs_jobs': get_pbs_jobs(),
     'node_status': get_node_status(),
     'upcoming_jobs': get_upcoming_jobs(6),
