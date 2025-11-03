@@ -128,6 +128,21 @@ def get_last_run_from_log(logfile):
     return 'N/A', 999
 
 
+def check_pbs_job_running(job_id):
+    """Check if a PBS job is currently running using mqstat."""
+    try:
+        output = subprocess.check_output(['mqstat', '-f', str(job_id)], stderr=subprocess.DEVNULL).decode()
+        # If mqstat returns data without error, job exists and might be running
+        if 'job_state' in output:
+            # Extract job state
+            state_match = re.search(r'job_state\s*=\s*(\w+)', output)
+            if state_match:
+                state = state_match.group(1)
+                return state in ['Q', 'R', 'H']  # Queued, Running, or Held
+        return False
+    except:
+        return False
+
 def analyze_log_status(logfile):
     """Analyze log file to determine workflow status."""
     try:
@@ -137,9 +152,12 @@ def analyze_log_status(logfile):
         with open(logfile, 'r') as f:
             tail_content = f.read()
         
-        # Check for active running state first (takes precedence)
-        if re.search(r'still waiting', tail_content, re.IGNORECASE):
-            return {'status': 'running', 'message': 'Job currently running', 'details': 'Still waiting for output'}
+        # Extract PBS job ID from log if present
+        job_id_match = re.search(r'Your job (\d+)', tail_content)
+        if job_id_match:
+            job_id = job_id_match.group(1)
+            if check_pbs_job_running(job_id):
+                return {'status': 'running', 'message': 'PBS job currently running', 'details': f'Job ID: {job_id}'}
         
         # Check for clear failure indicators
         if re.search(r'killed|abort|fatal|exception', tail_content, re.IGNORECASE):
@@ -158,16 +176,16 @@ def analyze_log_status(logfile):
         if re.search(r'mail -s.*cycle complete|cycle.*complete|All.*complete', tail_content, re.IGNORECASE):
             return {'status': 'success', 'message': 'Job completed successfully', 'details': 'Normal completion'}
         
-        # Check for recent PBS activity indicating still running
+        # Check for recent log activity with "still waiting" pattern
         age = get_file_age(logfile)
-        if age < 5 and re.search(r'qsub|date.*UTC|PBS', tail_content, re.IGNORECASE):
-            return {'status': 'running', 'message': 'Job currently running', 'details': 'Active processing'}
+        if age < 60 and re.search(r'still waiting', tail_content, re.IGNORECASE):
+            return {'status': 'running', 'message': 'Job currently running', 'details': 'Still waiting for output'}
         
-        # Default running or unknown
+        # Default based on file age
         if age < 30:
-            return {'status': 'running', 'message': 'Job appears to be running', 'details': 'Recent activity detected'}
+            return {'status': 'unknown', 'message': 'Status unclear', 'details': 'Recent activity but no clear status'}
         else:
-            return {'status': 'unknown', 'message': 'Status unclear', 'details': 'No recent activity'}
+            return {'status': 'success', 'message': 'Job completed', 'details': 'No recent activity, assuming completion'}
     except:
         return {'status': 'unknown', 'message': 'Error analyzing log', 'details': ''}
 
