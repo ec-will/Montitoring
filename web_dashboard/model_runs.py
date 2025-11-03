@@ -168,24 +168,40 @@ def analyze_log_status(logfile):
 
 
 def get_wrfout_count(job_name, cycle_num, logfile):
-    """Count wrfout files for a job."""
+    """Count wrfout files for a job.
+    
+    Extracts actual runtime directory from log file contents to handle cases
+    where log filename timestamp differs from actual job runtime.
+    """
     try:
-        # Extract date and hour from log filename (YYYYMMDDHH format)
-        match = re.search(r'\.(\d{10})\.log$', logfile)
-        if not match:
+        # Read log file to find actual working directory
+        with open(logfile, 'r') as f:
+            log_content = f.read()
+        
+        # Extract working directory from log (e.g., WRFHOME or cd command)
+        # Patterns: "setenv WRFHOME /path/YYYYMMDDHH" or similar
+        dir_match = None
+        if 'global_wrf' in job_name:
+            # Global WRF: look for global_0.25deg/YYYYMMDDHH
+            dir_match = re.search(r'global_0\.25deg/(\d{10})', log_content)
+        elif 'accuwx_asia' in job_name:
+            # AccuWX Asia: look for accuwx_asia/YYYYMMDDHH
+            dir_match = re.search(r'accuwx_asia/(\d{10})', log_content)
+        elif 'accuwx_europe' in job_name:
+            # AccuWX Europe: look for accuwx_euro/YYYYMMDDHH
+            dir_match = re.search(r'accuwx_euro/(\d{10})', log_content)
+        
+        if not dir_match:
             return 0
         
-        datetime_str = match.group(1)  # YYYYMMDDHH
+        datetime_str = dir_match.group(1)
         
-        # Determine data directory based on job name
+        # Construct the actual cycle directory path
         if 'global_wrf' in job_name:
-            # Global WRF: ~/data/intel/global_0.25deg/{datetime_str}/
             cycle_dir = os.path.join(DATA_DIR, 'intel', 'global_0.25deg', datetime_str)
         elif 'accuwx_asia' in job_name:
-            # AccuWX Asia: ~/data/accuwx_asia/{datetime_str}/
             cycle_dir = os.path.join(DATA_DIR, 'accuwx_asia', datetime_str)
         elif 'accuwx_europe' in job_name:
-            # AccuWX Europe: ~/data/accuwx_euro/{datetime_str}/
             cycle_dir = os.path.join(DATA_DIR, 'accuwx_euro', datetime_str)
         else:
             return 0
