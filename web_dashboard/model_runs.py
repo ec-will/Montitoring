@@ -170,21 +170,23 @@ def analyze_log_status(logfile):
 def get_wrfout_count(job_name, cycle_num, logfile):
     """Count wrfout files for a job."""
     try:
-        # Extract date from log filename (YYYYMMDDHH format)
+        # Extract date and hour from log filename (YYYYMMDDHH format)
         match = re.search(r'\.(\d{10})\.log$', logfile)
         if not match:
             return 0
         
-        datetime_str = match.group(1)
-        date_str = datetime_str[:8]
+        datetime_str = match.group(1)  # YYYYMMDDHH
         
         # Determine data directory based on job name
         if 'global_wrf' in job_name:
-            cycle_dir = os.path.join(DATA_DIR, 'intel', 'global_0.25deg', f'{date_str}{cycle_num}')
+            # Global WRF: ~/data/intel/global_0.25deg/{datetime_str}/
+            cycle_dir = os.path.join(DATA_DIR, 'intel', 'global_0.25deg', datetime_str)
         elif 'accuwx_asia' in job_name:
-            cycle_dir = os.path.join(DATA_DIR, 'accuwx_asia', f'{date_str}{cycle_num}')
+            # AccuWX Asia: ~/data/accuwx_asia/{datetime_str}/
+            cycle_dir = os.path.join(DATA_DIR, 'accuwx_asia', datetime_str)
         elif 'accuwx_europe' in job_name:
-            cycle_dir = os.path.join(DATA_DIR, 'accuwx_plus', f'{date_str}{cycle_num}')
+            # AccuWX Europe: ~/data/accuwx_euro/{datetime_str}/
+            cycle_dir = os.path.join(DATA_DIR, 'accuwx_euro', datetime_str)
         else:
             return 0
         
