@@ -137,6 +137,10 @@ def analyze_log_status(logfile):
         with open(logfile, 'r') as f:
             tail_content = f.read()
         
+        # Check for active running state first (takes precedence)
+        if re.search(r'still waiting', tail_content, re.IGNORECASE):
+            return {'status': 'running', 'message': 'Job currently running', 'details': 'Still waiting for output'}
+        
         # Check for clear failure indicators
         if re.search(r'killed|abort|fatal|exception', tail_content, re.IGNORECASE):
             error_msg = re.search(r'(killed|abort|fatal|exception)[^\n]*', tail_content, re.IGNORECASE)
@@ -150,13 +154,13 @@ def analyze_log_status(logfile):
             else:
                 return {'status': 'failed', 'message': 'Data unavailable', 'details': 'Upstream data timeout'}
         
-        # Check for success
-        if re.search(r'^exit$|cycle.*complete|processing.*complete', tail_content, re.MULTILINE):
+        # Check for actual success (look for mail commands or cycle completion in output)
+        if re.search(r'mail -s.*cycle complete|cycle.*complete|All.*complete', tail_content, re.IGNORECASE):
             return {'status': 'success', 'message': 'Job completed successfully', 'details': 'Normal completion'}
         
-        # Check for active running state
+        # Check for recent PBS activity indicating still running
         age = get_file_age(logfile)
-        if age < 5 and re.search(r'still waiting|qsub|date.*UTC|PBS', tail_content, re.IGNORECASE):
+        if age < 5 and re.search(r'qsub|date.*UTC|PBS', tail_content, re.IGNORECASE):
             return {'status': 'running', 'message': 'Job currently running', 'details': 'Active processing'}
         
         # Default running or unknown
