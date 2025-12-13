@@ -490,6 +490,46 @@ class JobAnomalyDetector:
                     anomaly['type'],
                     anomaly['job_name']
                 ))
+        
+        # Send ntfy notification
+        ntfy_channel = self.config['alerts']['channels'].get('ntfy', {})
+        if ntfy_channel.get('enabled'):
+            try:
+                import requests
+                server = ntfy_channel.get('server', 'https://ntfy.sh')
+                topic = ntfy_channel.get('topic', 'alerts')
+                url = "{}/{}".format(server, topic)
+                
+                if anomaly['type'] == 'missing_job':
+                    message = "Missing Job: {}\nLast seen {:.1f}hrs ago (expected every {:.1f}hrs)".format(
+                        anomaly['job_name'],
+                        anomaly['actual_interval'] / 3600,
+                        anomaly['expected_interval'] / 3600
+                    )
+                    tags = "warning,clock"
+                elif anomaly['type'] == 'duration_anomaly':
+                    message = "Duration Anomaly: {}\nTook {:.0f}s (expected {:.0f}s)".format(
+                        anomaly['job_name'],
+                        anomaly['duration'],
+                        anomaly['expected_mean']
+                    )
+                    tags = "warning,zap"
+                else:
+                    message = "Anomaly: {}".format(anomaly['job_name'])
+                    tags = "warning"
+                
+                priority = "high" if anomaly['severity'] == 'critical' else "default"
+                
+                requests.post(url, 
+                    data=message.encode('utf-8'),
+                    headers={
+                        "Title": "HPC Anomaly - {}".format(anomaly['severity'].upper()),
+                        "Priority": priority,
+                        "Tags": tags
+                    })
+            except Exception as e:
+                logger.error("Failed to send ntfy notification: {}".format(e))
+    
     
     def print_report(self):
         """Print summary report of all jobs"""
