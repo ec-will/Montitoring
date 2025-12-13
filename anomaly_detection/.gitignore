@@ -1,0 +1,17 @@
+# Trained models
+models/*.pkl
+models/*_metadata.json
+
+# Alert logs
+alerts/*.log
+alerts/alert_history.log
+
+# Generated data
+*.log
+*.pyc
+__pycache__/
+
+# Virtual environment
+venv/
+env/
+.venv/

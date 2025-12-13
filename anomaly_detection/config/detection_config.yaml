@@ -1,0 +1,103 @@
+# Anomaly Detection Configuration
+
+# Data sources
+data_sources:
+  cluster_usage: "../web_dashboard/dashboard_cluster_usage.json"
+  login_jobs: "../web_dashboard/dashboard_login_jobs.json"
+  disk_usage: "../web_dashboard/disk-usage/disk_usage_data.json"
+
+# Detection settings
+detection:
+  # Check interval in seconds
+  check_interval: 300  # 5 minutes
+  
+  # Lookback window for pattern analysis (hours)
+  lookback_hours: 48
+  
+  # Minimum data points required before detection starts
+  min_data_points: 20
+  
+  # Sensitivity levels (1-5, where 5 is most sensitive)
+  sensitivity: 3
+
+# Anomaly thresholds (standard deviations from mean)
+thresholds:
+  # Job submission rate
+  job_rate:
+    warning: 2.0   # 2 sigma
+    critical: 3.0  # 3 sigma
+  
+  # Core utilization
+  core_usage:
+    warning: 2.5
+    critical: 3.5
+  
+  # Execution time
+  execution_time:
+    warning: 2.0
+    critical: 3.0
+  
+  # Core-hours consumption
+  core_hours:
+    warning: 2.5
+    critical: 3.5
+
+# Alert settings
+alerts:
+  # Enable/disable alerting
+  enabled: true
+  
+  # Minimum time between duplicate alerts (seconds)
+  cooldown_period: 1800  # 30 minutes
+  
+  # Alert channels
+  channels:
+    email:
+      enabled: false
+      recipients: []
+      smtp_server: "localhost"
+      smtp_port: 25
+      from_address: "monitoring@example.com"
+    
+    slack:
+      enabled: false
+      webhook_url: ""
+    
+    log:
+      enabled: true
+      log_file: "alerts/alert_history.log"
+  
+  # Alert severity levels to report
+  report_levels:
+    - "critical"
+    - "warning"
+
+# Model settings
+model:
+  # Model storage directory
+  model_dir: "models/"
+  
+  # Model type: statistical, isolation_forest, one_class_svm
+  type: "statistical"
+  
+  # Retrain interval (hours)
+  retrain_interval: 24
+  
+  # Training history window (days)
+  training_window: 30
+
+# Metrics to monitor
+metrics:
+  job_submission_rate: true
+  core_utilization: true
+  execution_time: true
+  user_activity: true
+  core_hours_consumption: true
+  disk_usage: false  # Disabled by default
+
+# Logging
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  file: "anomaly_detector.log"
+  max_size_mb: 10
+  backup_count: 5

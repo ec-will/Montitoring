@@ -1,0 +1,12 @@
+# Core dependencies
+numpy>=1.21.0
+pyyaml>=5.4.0
+
+# Optional ML dependencies
+scikit-learn>=1.0.0
+
+# Alert delivery
+requests>=2.26.0
+
+# Logging and monitoring
+python-dateutil>=2.8.0
