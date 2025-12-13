@@ -211,7 +211,7 @@ class JobAnomalyDetector:
         try:
             data = {
                 'profiles': {},
-                'saved_at': datetime.now().isoformat(),
+                'saved_at': datetime.utcnow().isoformat(),
                 'job_count': len(self.job_profiles)
             }
             
@@ -318,7 +318,7 @@ class JobAnomalyDetector:
     def detect_anomalies(self):
         """Detect anomalies across all jobs"""
         anomalies = []
-        current_time = datetime.now()
+        current_time = datetime.utcnow()
         
         # Check for missing jobs
         for job_name, profile in self.job_profiles.items():
@@ -380,7 +380,7 @@ class JobAnomalyDetector:
         for anomaly in anomalies:
             # Check cooldown
             alert_key = "{}:{}".format(anomaly['job_name'], anomaly['type'])
-            now = datetime.now()
+            now = datetime.utcnow()
             
             if alert_key in self.alert_cooldowns:
                 last_alert = self.alert_cooldowns[alert_key]
@@ -424,7 +424,7 @@ class JobAnomalyDetector:
             
             with open(alert_file, 'a') as f:
                 f.write("{} - {} - {} - {}\n".format(
-                    datetime.now().isoformat(),
+                    datetime.utcnow().isoformat(),
                     anomaly['severity'].upper(),
                     anomaly['type'],
                     anomaly['job_name']
@@ -462,7 +462,7 @@ class JobAnomalyDetector:
             
             if stats.get('last_seen'):
                 last_seen = parse_iso_datetime(stats['last_seen'])
-                hours_ago = (datetime.now() - last_seen).total_seconds() / 3600
+                hours_ago = (datetime.utcnow() - last_seen).total_seconds() / 3600
                 print("  Last seen: {:.1f} hours ago".format(hours_ago))
             
             print()
