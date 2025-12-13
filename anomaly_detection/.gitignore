@@ -21,3 +21,4 @@ detector_output.log
 # Fetched data
 data/*.json
 fetch_data.log
+historical_metrics.json

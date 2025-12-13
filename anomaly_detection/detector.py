@@ -5,7 +5,10 @@ Anomaly Detection Engine for HPC Cluster Monitoring
 Monitors cluster metrics and detects anomalies using statistical methods
 and machine learning models.
 
-Python 3.6+ compatible
+Features:
+- Bootstraps from 48-hour historical data in JSON files
+- Persists learned patterns across restarts
+- Python 3.6+ compatible
 """
 
 import json
@@ -15,6 +18,7 @@ import time
 import logging
 import argparse
 from datetime import datetime, timedelta
+from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 import numpy as np
@@ -55,7 +59,8 @@ class AnomalyDetector:
         self.config = self._load_config(config_path)
         self.historical_data = []
         self.last_check = None
-        self.alert_cooldowns = {}  # Track cooldown periods for alerts
+        self.alert_cooldowns = {}
+        self.history_file = 'historical_metrics.json'
         
         # Set up logging from config
         log_level = getattr(logging, self.config['logging']['level'])
@@ -70,11 +75,134 @@ class AnomalyDetector:
         logger.addHandler(handler)
         
         logger.info("Anomaly detector initialized")
+        
+        # Load or bootstrap historical data
+        self._initialize_historical_data()
     
     def _load_config(self, config_path):
         """Load configuration from YAML file"""
         with open(config_path, 'r') as f:
             return yaml.safe_load(f)
+    
+    def _initialize_historical_data(self):
+        """Initialize historical data from persistence or bootstrap from JSON"""
+        # Try to load from persistent storage first
+        if self._load_historical_data():
+            logger.info("Loaded {} data points from persistent storage".format(
+                len(self.historical_data)
+            ))
+            return
+        
+        # Bootstrap from 48-hour JSON data
+        logger.info("No persistent data found, bootstrapping from JSON files...")
+        self._bootstrap_from_json()
+    
+    def _load_historical_data(self):
+        """Load historical data from persistent storage"""
+        if not os.path.exists(self.history_file):
+            return False
+        
+        try:
+            with open(self.history_file, 'r') as f:
+                data = json.load(f)
+                self.historical_data = data.get('metrics', [])
+                logger.info("Loaded historical data from {}".format(self.history_file))
+                return True
+        except Exception as e:
+            logger.warning("Failed to load historical data: {}".format(e))
+            return False
+    
+    def _save_historical_data(self):
+        """Save historical data to persistent storage"""
+        try:
+            data = {
+                'metrics': self.historical_data,
+                'saved_at': datetime.now().isoformat(),
+                'data_points': len(self.historical_data)
+            }
+            with open(self.history_file, 'w') as f:
+                json.dump(data, f, indent=2)
+            logger.debug("Saved {} data points to {}".format(
+                len(self.historical_data), self.history_file
+            ))
+        except Exception as e:
+            logger.error("Failed to save historical data: {}".format(e))
+    
+    def _bootstrap_from_json(self):
+        """Bootstrap historical metrics from 48-hour JSON data"""
+        cluster_data = self._load_data_source(
+            self.config['data_sources']['cluster_usage']
+        )
+        login_data = self._load_data_source(
+            self.config['data_sources']['login_jobs']
+        )
+        
+        if not cluster_data and not login_data:
+            logger.warning("No data available for bootstrapping")
+            return
+        
+        # Bucket data into hourly intervals
+        hourly_buckets = defaultdict(lambda: {
+            'job_count': 0,
+            'core_hours': 0,
+            'login_jobs': 0,
+            'users': set()
+        })
+        
+        # Process cluster usage data
+        if cluster_data:
+            job_usage = cluster_data.get('job_usage', {}).get('jobs', {})
+            for job_name, job_data in job_usage.items():
+                for run in job_data.get('runs_detail', []):
+                    try:
+                        start_time = parse_iso_datetime(run['start'])
+                        hour_key = start_time.replace(minute=0, second=0, microsecond=0)
+                        
+                        hourly_buckets[hour_key]['job_count'] += 1
+                        hourly_buckets[hour_key]['core_hours'] += run.get('core_hours', 0)
+                    except:
+                        continue
+        
+        # Process login jobs data
+        if login_data:
+            job_runs = login_data.get('job_runs', {}).get('jobs', {})
+            for script_name, script_data in job_runs.items():
+                for run in script_data.get('runs_detail', []):
+                    try:
+                        start_time = parse_iso_datetime(run['start'])
+                        hour_key = start_time.replace(minute=0, second=0, microsecond=0)
+                        
+                        hourly_buckets[hour_key]['login_jobs'] += 1
+                    except:
+                        continue
+        
+        # Convert buckets to metrics
+        for hour_time in sorted(hourly_buckets.keys()):
+            bucket = hourly_buckets[hour_time]
+            
+            # Calculate core utilization (assume 1000 cores capacity)
+            total_capacity = 1000
+            core_utilization = min(
+                (bucket['core_hours'] / 1.0) / total_capacity * 100,
+                100
+            )
+            
+            metrics = {
+                'timestamp': hour_time.isoformat(),
+                'job_rate': bucket['login_jobs'],
+                'core_utilization': core_utilization,
+                'total_core_hours': bucket['core_hours'],
+                'active_jobs': bucket['job_count'],
+                'user_count': len(bucket['users'])
+            }
+            self.historical_data.append(metrics)
+        
+        logger.info("Bootstrapped {} hourly data points from JSON".format(
+            len(self.historical_data)
+        ))
+        
+        # Save bootstrapped data
+        self._save_historical_data()
     
     def _load_data_source(self, source_path):
         """Load data from JSON file"""
@@ -105,28 +233,38 @@ class AnomalyDetector:
             self.config['data_sources']['cluster_usage']
         )
         if cluster_data:
-            summary = cluster_data.get('summary', {})
-            metrics['active_jobs'] = summary.get('total_jobs', 0)
+            job_usage = cluster_data.get('job_usage', {})
+            summary = job_usage.get('summary', {})
+            jobs = job_usage.get('jobs', {})
+            
+            metrics['active_jobs'] = summary.get('total_unique_scripts', len(jobs))
             metrics['total_core_hours'] = summary.get('total_core_hours', 0)
-            metrics['user_count'] = len(cluster_data.get('jobs', {}))
+            metrics['user_count'] = len(jobs)
         
         # Load login jobs data
         login_data = self._load_data_source(
             self.config['data_sources']['login_jobs']
         )
         if login_data:
+            job_runs = login_data.get('job_runs', {})
+            jobs = job_runs.get('jobs', {})
+            
             # Count recent jobs (last hour)
-            recent_jobs = [
-                job for job in login_data.get('completed_jobs', [])
-                if self._is_recent(job.get('start_time'), hours=1)
-            ]
-            metrics['job_rate'] = len(recent_jobs)
+            recent_count = 0
+            for script_name, script_data in jobs.items():
+                for run in script_data.get('runs_detail', [])[:5]:  # Check recent runs
+                    try:
+                        if self._is_recent(run.get('start'), hours=1):
+                            recent_count += 1
+                    except:
+                        continue
+            
+            metrics['job_rate'] = recent_count
         
-        # Calculate core utilization (mock - would need actual cluster capacity)
-        # Assume 1000 cores total capacity
+        # Calculate core utilization
         total_capacity = 1000
         metrics['core_utilization'] = min(
-            (metrics['total_core_hours'] / 48) / total_capacity * 100, 
+            (metrics['total_core_hours'] / 48) / total_capacity * 100,
             100
         )
         
@@ -228,6 +366,10 @@ class AnomalyDetector:
     def run_continuous(self):
         """Run detector in continuous monitoring mode"""
         logger.info("Starting continuous monitoring...")
+        logger.info("Historical data points: {}".format(len(self.historical_data)))
+        
+        save_counter = 0
+        save_interval = 12  # Save every 12 checks (1 hour at 5-min intervals)
         
         try:
             while True:
@@ -253,13 +395,21 @@ class AnomalyDetector:
                 if anomalies:
                     self._handle_anomalies(anomalies)
                 
+                # Periodic save
+                save_counter += 1
+                if save_counter >= save_interval:
+                    self._save_historical_data()
+                    save_counter = 0
+                
                 # Wait for next check
                 time.sleep(self.config['detection']['check_interval'])
                 
         except KeyboardInterrupt:
             logger.info("Detector stopped by user")
+            self._save_historical_data()
         except Exception as e:
             logger.error("Detector error: {}".format(e), exc_info=True)
+            self._save_historical_data()
     
     def _handle_anomalies(self, anomalies):
         """Handle detected anomalies (log, alert, etc.)"""
@@ -341,6 +491,14 @@ def main():
         print("Current metrics:")
         for key, value in metrics.items():
             print("  {}: {}".format(key, value))
+        
+        print("\nHistorical data points: {}".format(len(detector.historical_data)))
+        if len(detector.historical_data) >= detector.config['detection']['min_data_points']:
+            print("✓ Ready to detect anomalies")
+        else:
+            print("⚠ Need {} more data points before detection can start".format(
+                detector.config['detection']['min_data_points'] - len(detector.historical_data)
+            ))
     else:
         # Continuous monitoring
         detector.run_continuous()
