@@ -249,6 +249,7 @@ dashboard_data = {
     }
 }
 
+
 # Write JSON file
 with open('dashboard_data.json', 'w') as f:
     json.dump(dashboard_data, f, indent=2)

@@ -1,0 +1,2 @@
+# Disk Usage Dashboard - Run daily at 3:00 AM
+0 3 * * * /e/08/erthch01/monitoring/disk-usage/update_disk_usage_cron.sh

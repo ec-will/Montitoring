@@ -1,0 +1,14 @@
+{
+  "compute": {
+    "erthch": 0.00,
+    "red": 0.12,
+    "green": 0.12,
+    "onyx": 0.12,
+    "blue": 0.12
+  },
+  "storage": {
+    "per_gb": 0.12
+  },
+  "currency": "USD",
+  "last_updated": "2025-10-22"
+}

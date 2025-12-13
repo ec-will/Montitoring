@@ -25,5 +25,11 @@ test_*
 
 # Generated data files
 dashboard_data.json
+dashboard_login_jobs.json
+dashboard_cluster_usage.json
 log_monitoring/*.json
 log_monitoring/*.log
+
+# Lock files
+/tmp/dashboard_*.lock
+usage_report_data.json

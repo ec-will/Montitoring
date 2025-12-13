@@ -257,6 +257,7 @@
 
     <div class="nav-bar">
         <a href="transfers.html" class="nav-link">📁 Transfer Logs</a>
+        <a href="disk-usage/disk-usage.html" class="nav-link">💾 Disk Usage</a>
     </div>
 
     <div id="content">
@@ -265,12 +266,24 @@
 
     <script>
         let dashboardData = null;
+        let usageReportData = null;
 
         async function loadDashboardData() {
             try {
                 const response = await fetch(`dashboard_data.json?t=${Date.now()}`);
                 if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 dashboardData = await response.json();
+                
+                // Load usage report data separately
+                try {
+                    const usageResponse = await fetch(`usage_report_data.json?t=${Date.now()}`);
+                    if (usageResponse.ok) {
+                        usageReportData = await usageResponse.json();
+                    }
+                } catch (e) {
+                    console.log('Usage report data not available');
+                }
+                
                 renderDashboard();
             } catch (error) {
                 console.error('Error loading dashboard data:', error);
@@ -471,6 +484,7 @@
             html += '</div>';
             
             html += '</div>'; // End two-column container
+            
             // Cluster Usage Timeline section
             html += '<div class="section">';
             html += '<h2>Cluster Usage Timeline</h2>';
@@ -482,8 +496,127 @@
             html += 'style="width: 100%; height: 800px; border: 1px solid #ddd; border-radius: 8px;" ';
             html += 'frameborder="0"></iframe>';
             html += '</div>';
-
-
+            
+            // Login Node Jobs Timeline section
+            html += '<div class="section">';
+            html += '<h2>Login Node Jobs Timeline</h2>';
+            html += '<div style="margin-bottom: 15px; padding: 10px; background-color: #e3f2fd; border-radius: 5px; border: 1px solid #ddd;">';
+            html += '<p><strong>Cron jobs running on login node (48-hour window).</strong> ';
+            html += 'Shows scripts that run locally, excluding cluster submission wrappers. Hover for details.</p>';
+            html += '</div>';
+            html += '<iframe src="login_jobs_timeline.html" ';
+            html += 'style="width: 100%; height: 800px; border: 1px solid #ddd; border-radius: 8px;" ';
+            html += 'frameborder="0"></iframe>';
+            html += '</div>';
+            
+            // Monthly Usage Report section
+            if (usageReportData) {
+                const usageReport = usageReportData;
+                html += '<div class="section">';
+                html += '<h2>Monthly Usage Report</h2>';
+                html += '<div class="two-column-container">';
+                
+                // Job Usage (left column)
+                html += '<div class="half-width">';
+                html += '<h3 style="margin-top: 0; color: #2c3e50;">Job Usage (' + (usageReport.job_usage?.summary?.collection_period || 'N/A') + ')</h3>';
+                
+                if (usageReport.job_usage?.summary) {
+                    const summary = usageReport.job_usage.summary;
+                    html += '<div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 15px;">';
+                    html += '<p style="margin: 5px 0;"><strong>Total:</strong> ' + summary.total_jobs.toLocaleString() + ' jobs, ' + summary.total_core_hours.toLocaleString() + ' core hours</p>';
+                    html += '<p style="margin: 5px 0;"><strong>Clusters:</strong> ' + summary.unique_clusters + ' active clusters</p>';
+                    html += '<p style="margin: 5px 0;"><strong>Compute Cost:</strong> $' + summary.total_cost.toFixed(2) + '</p>';
+                    html += '</div>';
+                    
+                    // Clusters breakdown table
+                    if (usageReport.job_usage.clusters) {
+                        html += '<table style="font-size: 0.9em;">';
+                        html += '<thead><tr><th>Cluster</th><th>Jobs</th><th>Core Hours</th><th>Cost</th></tr></thead>';
+                        html += '<tbody>';
+                        
+                        let totalJobs = 0;
+                        let totalCoreHours = 0;
+                        let totalCost = 0;
+                        
+                        for (const [clusterName, clusterData] of Object.entries(usageReport.job_usage.clusters)) {
+                            html += '<tr>';
+                            html += '<td><strong>' + clusterName + '</strong></td>';
+                            html += '<td>' + clusterData.job_count.toLocaleString() + '</td>';
+                            html += '<td>' + clusterData.core_hours.toLocaleString() + '</td>';
+                            html += '<td>$' + clusterData.cost.toFixed(2) + '</td>';
+                            html += '</tr>';
+                            
+                            totalJobs += clusterData.job_count;
+                            totalCoreHours += clusterData.core_hours;
+                            totalCost += clusterData.cost;
+                        }
+                        
+                        // Totals row
+                        html += '<tr style="border-top: 2px solid #ddd; font-weight: 600;">';
+                        html += '<td><strong>TOTAL</strong></td>';
+                        html += '<td>' + totalJobs.toLocaleString() + '</td>';
+                        html += '<td>' + totalCoreHours.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td>';
+                        html += '<td>$' + totalCost.toFixed(2) + '</td>';
+                        html += '</tr>';
+                        
+                        html += '</tbody></table>';
+                    }
+                } else {
+                    html += '<div class="no-data">No job usage data available</div>';
+                }
+                
+                html += '</div>';
+                
+                // Disk Usage (right column)
+                html += '<div class="half-width">';
+                html += '<h3 style="margin-top: 0; color: #2c3e50;">Disk Usage</h3>';
+                
+                if (usageReport.disk_usage && usageReport.disk_usage.length > 0) {
+                    html += '<table style="font-size: 0.9em;">';
+                    html += '<thead><tr><th>Path</th><th>Size (GB)</th><th>Files</th><th>Cost</th></tr></thead>';
+                    html += '<tbody>';
+                    
+                    let totalGB = 0;
+                    let totalFiles = 0;
+                    let totalCost = 0;
+                    
+                    usageReport.disk_usage.forEach(disk => {
+                        html += '<tr>';
+                        html += '<td><strong>' + disk.path + '</strong></td>';
+                        html += '<td>' + disk.gigabytes.toFixed(2) + ' GB</td>';
+                        html += '<td>' + disk.files.toLocaleString() + '</td>';
+                        html += '<td>$' + disk.cost.toFixed(2) + '</td>';
+                        html += '</tr>';
+                        
+                        totalGB += disk.gigabytes;
+                        totalFiles += disk.files;
+                        totalCost += disk.cost;
+                    });
+                    
+                    // Totals row
+                    html += '<tr style="border-top: 2px solid #ddd; font-weight: 600;">';
+                    html += '<td><strong>TOTAL</strong></td>';
+                    html += '<td>' + totalGB.toFixed(2) + ' GB</td>';
+                    html += '<td>' + totalFiles.toLocaleString() + '</td>';
+                    html += '<td>$' + totalCost.toFixed(2) + '</td>';
+                    html += '</tr>';
+                    
+                    html += '</tbody></table>';
+                    
+                    // Generated timestamp
+                    if (usageReport.metadata?.generated_time) {
+                        html += '<div style="margin-top: 10px; font-size: 0.85em; color: #666;">';
+                        html += '<p style="margin: 0;">Generated: ' + new Date(usageReport.metadata.generated_time).toLocaleString() + '</p>';
+                        html += '</div>';
+                    }
+                } else {
+                    html += '<div class="no-data">No disk usage data available</div>';
+                }
+                
+                html += '</div>';
+                html += '</div>'; // End two-column container
+                html += '</div>'; // End section
+            }
 
             // System Metrics section
             html += '<div class="section">';
