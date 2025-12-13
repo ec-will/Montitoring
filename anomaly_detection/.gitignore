@@ -22,3 +22,4 @@ detector_output.log
 data/*.json
 fetch_data.log
 historical_metrics.json
+job_profiles.json
