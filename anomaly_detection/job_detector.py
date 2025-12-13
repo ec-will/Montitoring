@@ -315,6 +315,60 @@ class JobAnomalyDetector:
             logger.error("Failed to parse {}: {}".format(source_path, e))
             return None
     
+    def _discover_new_jobs(self):
+        """Discover and add new jobs from JSON data"""
+        new_jobs = []
+        
+        login_data = self._load_data_source(
+            self.config['data_sources']['login_jobs']
+        )
+        if login_data:
+            jobs = login_data.get('job_runs', {}).get('jobs', {})
+            for job_name in jobs.keys():
+                if job_name not in self.job_profiles:
+                    profile = JobProfile(job_name)
+                    runs = sorted(
+                        jobs[job_name].get('runs_detail', [])[-10:],
+                        key=lambda r: r.get('start', '')
+                    )
+                    for run in runs:
+                        try:
+                            start_time = parse_iso_datetime(run['start'])
+                            duration = run.get('duration_seconds', 0)
+                            profile.add_run(start_time, duration)
+                        except:
+                            continue
+                    if profile.total_runs > 0:
+                        self.job_profiles[job_name] = profile
+                        new_jobs.append(job_name)
+        
+        cluster_data = self._load_data_source(
+            self.config['data_sources']['cluster_usage']
+        )
+        if cluster_data:
+            jobs = cluster_data.get('job_usage', {}).get('jobs', {})
+            for job_name in jobs.keys():
+                if job_name not in self.job_profiles:
+                    profile = JobProfile(job_name)
+                    runs = sorted(
+                        jobs[job_name].get('runs_detail', [])[-10:],
+                        key=lambda r: r.get('start', '')
+                    )
+                    for run in runs:
+                        try:
+                            start_time = parse_iso_datetime(run['start'])
+                            cores = run.get('cores', 1)
+                            core_hours = run.get('core_hours', 0)
+                            duration = (core_hours / cores) * 3600 if cores > 0 else 0
+                            profile.add_run(start_time, duration)
+                        except:
+                            continue
+                    if profile.total_runs > 0:
+                        self.job_profiles[job_name] = profile
+                        new_jobs.append(job_name)
+        
+        return new_jobs
+    
     def detect_anomalies(self):
         """Detect anomalies across all jobs"""
         anomalies = []
@@ -353,6 +407,13 @@ class JobAnomalyDetector:
         
         try:
             while True:
+                # Check for new jobs
+                new_jobs = self._discover_new_jobs()
+                if new_jobs:
+                    logger.info("Discovered {} new jobs: {}".format(
+                        len(new_jobs), ", ".join(new_jobs[:5])
+                    ))
+                
                 # Detect missing jobs
                 anomalies = self.detect_anomalies()
                 
