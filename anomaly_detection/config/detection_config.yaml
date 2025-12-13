@@ -4,7 +4,6 @@
 data_sources:
   cluster_usage: "../web_dashboard/dashboard_cluster_usage.json"
   login_jobs: "../web_dashboard/dashboard_login_jobs.json"
-  disk_usage: "../web_dashboard/disk-usage/disk_usage_data.json"
 
 # Detection settings
 detection:
@@ -93,7 +92,6 @@ metrics:
   execution_time: true
   user_activity: true
   core_hours_consumption: true
-  disk_usage: false  # Disabled by default
 
 # Logging
 logging:

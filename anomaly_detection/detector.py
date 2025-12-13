@@ -4,6 +4,8 @@ Anomaly Detection Engine for HPC Cluster Monitoring
 
 Monitors cluster metrics and detects anomalies using statistical methods
 and machine learning models.
+
+Python 3.6+ compatible
 """
 
 import json
@@ -26,10 +28,29 @@ logging.basicConfig(
 logger = logging.getLogger('anomaly_detector')
 
 
+def parse_iso_datetime(timestamp_str):
+    """Parse ISO format datetime string (Python 3.6 compatible)"""
+    # Handle timezone info
+    timestamp_str = timestamp_str.replace('Z', '+00:00')
+    
+    # Remove timezone for Python 3.6 compatibility
+    if '+' in timestamp_str:
+        timestamp_str = timestamp_str.split('+')[0]
+    
+    # Parse common ISO formats
+    for fmt in ['%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d %H:%M:%S']:
+        try:
+            return datetime.strptime(timestamp_str, fmt)
+        except ValueError:
+            continue
+    
+    raise ValueError("Cannot parse timestamp: {}".format(timestamp_str))
+
+
 class AnomalyDetector:
     """Main anomaly detection engine"""
     
-    def __init__(self, config_path: str):
+    def __init__(self, config_path):
         """Initialize detector with configuration"""
         self.config = self._load_config(config_path)
         self.historical_data = []
@@ -50,25 +71,25 @@ class AnomalyDetector:
         
         logger.info("Anomaly detector initialized")
     
-    def _load_config(self, config_path: str) -> Dict:
+    def _load_config(self, config_path):
         """Load configuration from YAML file"""
         with open(config_path, 'r') as f:
             return yaml.safe_load(f)
     
-    def _load_data_source(self, source_path: str) -> Optional[Dict]:
+    def _load_data_source(self, source_path):
         """Load data from JSON file"""
         if not os.path.exists(source_path):
-            logger.warning(f"Data source not found: {source_path}")
+            logger.warning("Data source not found: {}".format(source_path))
             return None
         
         try:
             with open(source_path, 'r') as f:
                 return json.load(f)
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse {source_path}: {e}")
+            logger.error("Failed to parse {}: {}".format(source_path, e))
             return None
     
-    def collect_current_metrics(self) -> Dict:
+    def collect_current_metrics(self):
         """Collect current metrics from all data sources"""
         metrics = {
             'timestamp': datetime.now().isoformat(),
@@ -111,22 +132,24 @@ class AnomalyDetector:
         
         return metrics
     
-    def _is_recent(self, timestamp_str: str, hours: int = 1) -> bool:
+    def _is_recent(self, timestamp_str, hours=1):
         """Check if timestamp is within the last N hours"""
         try:
-            ts = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+            ts = parse_iso_datetime(timestamp_str)
             return (datetime.now() - ts) < timedelta(hours=hours)
         except:
             return False
     
-    def detect_anomalies(self, current_metrics: Dict) -> List[Dict]:
+    def detect_anomalies(self, current_metrics):
         """Detect anomalies in current metrics"""
         anomalies = []
         
         if len(self.historical_data) < self.config['detection']['min_data_points']:
             logger.info(
-                f"Insufficient historical data: {len(self.historical_data)} points "
-                f"(need {self.config['detection']['min_data_points']})"
+                "Insufficient historical data: {} points (need {})".format(
+                    len(self.historical_data),
+                    self.config['detection']['min_data_points']
+                )
             )
             return anomalies
         
@@ -160,12 +183,7 @@ class AnomalyDetector:
         
         return anomalies
     
-    def _check_metric_anomaly(
-        self, 
-        metric_name: str, 
-        current_value: float,
-        thresholds: Dict
-    ) -> Optional[Dict]:
+    def _check_metric_anomaly(self, metric_name, current_value, thresholds):
         """Check if a metric value is anomalous using statistical methods"""
         
         # Extract historical values for this metric
@@ -215,7 +233,7 @@ class AnomalyDetector:
             while True:
                 # Collect current metrics
                 current_metrics = self.collect_current_metrics()
-                logger.debug(f"Current metrics: {current_metrics}")
+                logger.debug("Current metrics: {}".format(current_metrics))
                 
                 # Add to historical data
                 self.historical_data.append(current_metrics)
@@ -225,7 +243,7 @@ class AnomalyDetector:
                 cutoff_time = datetime.now() - timedelta(hours=lookback_hours)
                 self.historical_data = [
                     m for m in self.historical_data
-                    if datetime.fromisoformat(m['timestamp']) > cutoff_time
+                    if parse_iso_datetime(m['timestamp']) > cutoff_time
                 ]
                 
                 # Detect anomalies
@@ -241,9 +259,9 @@ class AnomalyDetector:
         except KeyboardInterrupt:
             logger.info("Detector stopped by user")
         except Exception as e:
-            logger.error(f"Detector error: {e}", exc_info=True)
+            logger.error("Detector error: {}".format(e), exc_info=True)
     
-    def _handle_anomalies(self, anomalies: List[Dict]):
+    def _handle_anomalies(self, anomalies):
         """Handle detected anomalies (log, alert, etc.)"""
         for anomaly in anomalies:
             # Check cooldown
@@ -254,16 +272,22 @@ class AnomalyDetector:
                 last_alert = self.alert_cooldowns[metric]
                 cooldown = self.config['alerts']['cooldown_period']
                 if (now - last_alert).total_seconds() < cooldown:
-                    logger.debug(f"Skipping alert for {metric} (in cooldown)")
+                    logger.debug("Skipping alert for {} (in cooldown)".format(metric))
                     continue
             
             # Log anomaly
             logger.warning(
-                f"ANOMALY DETECTED - {anomaly['metric']}: "
-                f"{anomaly['current_value']:.2f} "
-                f"(expected: {anomaly['expected_mean']:.2f} ± {anomaly['std_dev']:.2f}, "
-                f"z-score: {anomaly['z_score']:.2f}, "
-                f"severity: {anomaly['severity']})"
+                "ANOMALY DETECTED - {}: {:.2f} "
+                "(expected: {:.2f} ± {:.2f}, "
+                "z-score: {:.2f}, "
+                "severity: {})".format(
+                    anomaly['metric'],
+                    anomaly['current_value'],
+                    anomaly['expected_mean'],
+                    anomaly['std_dev'],
+                    anomaly['z_score'],
+                    anomaly['severity']
+                )
             )
             
             # Update cooldown
@@ -273,7 +297,7 @@ class AnomalyDetector:
             if self.config['alerts']['enabled']:
                 self._send_alert(anomaly)
     
-    def _send_alert(self, anomaly: Dict):
+    def _send_alert(self, anomaly):
         """Send alert through configured channels"""
         # For now, just log to alert file
         log_channel = self.config['alerts']['channels']['log']
@@ -282,9 +306,13 @@ class AnomalyDetector:
             os.makedirs(os.path.dirname(alert_file), exist_ok=True)
             
             with open(alert_file, 'a') as f:
-                f.write(f"{anomaly['timestamp']} - {anomaly['severity'].upper()} - "
-                       f"{anomaly['metric']}: {anomaly['current_value']:.2f} "
-                       f"(z-score: {anomaly['z_score']:.2f})\n")
+                f.write("{} - {} - {}: {:.2f} (z-score: {:.2f})\n".format(
+                    anomaly['timestamp'],
+                    anomaly['severity'].upper(),
+                    anomaly['metric'],
+                    anomaly['current_value'],
+                    anomaly['z_score']
+                ))
 
 
 def main():
@@ -312,7 +340,7 @@ def main():
         metrics = detector.collect_current_metrics()
         print("Current metrics:")
         for key, value in metrics.items():
-            print(f"  {key}: {value}")
+            print("  {}: {}".format(key, value))
     else:
         # Continuous monitoring
         detector.run_continuous()

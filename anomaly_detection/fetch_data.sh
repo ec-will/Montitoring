@@ -33,14 +33,6 @@ else
     log_message "✗ Failed to fetch dashboard_login_jobs.json"
 fi
 
-# Fetch disk usage data
-log_message "Fetching disk_usage_data.json..."
-if scp -q "$REMOTE_HOST:$REMOTE_BASE/disk-usage/disk_usage_data.json" "$LOCAL_DATA_DIR/"; then
-    log_message "✓ disk_usage_data.json fetched successfully"
-else
-    log_message "✗ Failed to fetch disk_usage_data.json"
-fi
-
 log_message "Data fetch complete"
 
 # Show file sizes and ages
