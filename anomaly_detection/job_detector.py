@@ -442,7 +442,7 @@ class JobAnomalyDetector:
             key=lambda x: np.mean(x[1].run_intervals) if len(x[1].run_intervals) > 0 else float('inf')
         )
         
-        for job_name, profile in sorted_jobs[:20]:  # Top 20
+        for job_name, profile in sorted_jobs:  # Top 20
             stats = profile.get_stats()
             
             print("Job: {}".format(job_name))
