@@ -7,7 +7,7 @@ The anomaly detector has been deployed to jeffsc8 and is ready to run.
 ## Deployment Details
 
 ### Location
-- **Installation Directory**: `/tmp/will/anomaly_detection/`
+- **Installation Directory**: `/e/08/erthch01/monitoring/anomaly_detection/`
 - **Configuration**: `config/detection_config_production.yaml`
 - **Wrapper Script**: `run_anomaly_detector.sh`
 - **Log File**: `anomaly_detector.log`
@@ -56,19 +56,19 @@ Add this line to your crontab on jeffsc8 (as user `will` or `erthch01`):
 
 ```bash
 # Anomaly detector - monitors HPC job patterns and alerts on anomalies
-*/15 * * * * /tmp/will/anomaly_detection/run_anomaly_detector.sh
+*/15 * * * * /e/08/erthch01/monitoring/anomaly_detection/run_anomaly_detector.sh
 ```
 
 ### Alternative Schedules
 
 **Every 10 minutes** (more responsive):
 ```bash
-*/10 * * * * /tmp/will/anomaly_detection/run_anomaly_detector.sh
+*/10 * * * * /e/08/erthch01/monitoring/anomaly_detection/run_anomaly_detector.sh
 ```
 
 **Every 30 minutes** (lighter load):
 ```bash
-*/30 * * * * /tmp/will/anomaly_detection/run_anomaly_detector.sh
+*/30 * * * * /e/08/erthch01/monitoring/anomaly_detection/run_anomaly_detector.sh
 ```
 
 ## To Add Crontab Entry
@@ -111,23 +111,23 @@ ps aux | grep job_detector.py
 
 ### View recent logs
 ```bash
-tail -50 /tmp/will/anomaly_detection/anomaly_detector.log
+tail -50 /e/08/erthch01/monitoring/anomaly_detection/anomaly_detector.log
 ```
 
 ### View alert history
 ```bash
-tail -50 /tmp/will/anomaly_detection/alerts/alert_history.log
+tail -50 /e/08/erthch01/monitoring/anomaly_detection/alerts/alert_history.log
 ```
 
 ### Generate status report
 ```bash
-cd /tmp/will/anomaly_detection
+cd /e/08/erthch01/monitoring/anomaly_detection
 python3 job_detector.py --config config/detection_config_production.yaml --report
 ```
 
 ### Check learned profiles
 ```bash
-cat /tmp/will/anomaly_detection/job_profiles.json | python3 -m json.tool | less
+cat /e/08/erthch01/monitoring/anomaly_detection/job_profiles.json | python3 -m json.tool | less
 ```
 
 ## Stopping/Disabling
@@ -141,7 +141,7 @@ pkill -f job_detector.py
 
 ### Permanent removal
 ```bash
-rm -rf /tmp/will/anomaly_detection
+rm -rf /e/08/erthch01/monitoring/anomaly_detection
 ```
 
 ## Troubleshooting
@@ -172,7 +172,7 @@ git push origin anomaly-alerting
 To update production deployment:
 ```bash
 cd ~/projects/monitoring
-rsync -avz anomaly_detection/ jeffsc8:/tmp/will/anomaly_detection/ --exclude 'data/' --exclude '*.pyc' --exclude 'job_profiles.json'
+rsync -avz anomaly_detection/ jeffsc8:/e/08/erthch01/monitoring/anomaly_detection/ --exclude 'data/' --exclude '*.pyc' --exclude 'job_profiles.json'
 ```
 
 ## Configuration Reference
