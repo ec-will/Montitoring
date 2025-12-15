@@ -24,7 +24,8 @@ The anomaly detector has been deployed to jeffsc8 and is ready to run.
 - ✅ Initial profiles built (65 jobs tracked)
 - ✅ Wrapper script created with lock file protection
 - ✅ Tested successfully with `--report` mode
-- ⏳ **Not yet added to crontab** (awaiting your approval)
+- ✅ **Crontab entry added** (running every 15 minutes)
+- ✅ **Anomaly command tool deployed** at `~/will/anomaly`
 
 ## Testing Results
 
@@ -104,29 +105,71 @@ The detector will send notifications when:
 
 ## Monitoring the Detector
 
-### Check if it's running
+### Quick Status Command (Recommended)
+
+A unified `anomaly` command is available at `~/will/anomaly` on jeffsc8:
+
 ```bash
+# Show quick status overview (default)
+~/will/anomaly
+~/will/anomaly status
+
+# Full detailed report of all jobs
+~/will/anomaly report
+
+# View detector logs
+~/will/anomaly log           # Last 50 lines
+~/will/anomaly log 100       # Last 100 lines
+
+# View alert history
+~/will/anomaly alerts        # Last 50 alerts
+~/will/anomaly alerts 20     # Last 20 alerts
+
+# Look up specific job details
+~/will/anomaly job mrms_to_chad.B.csh
+~/will/anomaly job update_dashboard_cron.sh
+
+# Show help
+~/will/anomaly help
+```
+
+**Example output:**
+```
+═══════════════════════════════════════════════════════
+    HPC Job Anomaly Detector Status
+═══════════════════════════════════════════════════════
+
+✓ Last run: 2025-12-15 01:14:42 UTC
+✓ Jobs tracked: 65
+✓ Profiles last saved: 2025-12-15T01:14:42.723
+
+✓ No alerts in last 24 hours
+
+━━━ Top 10 Most Frequent Jobs ━━━
+  wget_mrms_QCEchoHgt.C.csh                           577 runs  ~    5m  ~   30s
+  update_dashboard_cron.sh                            576 runs  ~    5m  ~    7s
+  ...
+```
+
+### Manual Commands
+
+If you prefer direct access:
+
+```bash
+# Check if detector is running
 ps aux | grep job_detector.py
-```
 
-### View recent logs
-```bash
+# View recent logs
 tail -50 /e/08/erthch01/monitoring/anomaly_detection/anomaly_detector.log
-```
 
-### View alert history
-```bash
+# View alert history
 tail -50 /e/08/erthch01/monitoring/anomaly_detection/alerts/alert_history.log
-```
 
-### Generate status report
-```bash
+# Generate full status report
 cd /e/08/erthch01/monitoring/anomaly_detection
 python3 job_detector.py --config config/detection_config_production.yaml --report
-```
 
-### Check learned profiles
-```bash
+# Check learned profiles (JSON)
 cat /e/08/erthch01/monitoring/anomaly_detection/job_profiles.json | python3 -m json.tool | less
 ```
 
@@ -189,7 +232,8 @@ Key settings in `config/detection_config_production.yaml`:
 ## Next Steps
 
 1. ✅ Review this deployment documentation
-2. ⏳ Add crontab entry (see above)
-3. ⏳ Subscribe to ntfy.sh topic `ect-hpc`
-4. ⏳ Monitor for first 24-48 hours for false positives
-5. ⏳ Adjust sensitivity if needed
+2. ✅ Add crontab entry (running every 15 minutes)
+3. ✅ Anomaly command deployed at `~/will/anomaly`
+4. ⏳ Subscribe to ntfy.sh topic `ect-hpc`
+5. ⏳ Monitor for first 24-48 hours for false positives
+6. ⏳ Adjust sensitivity if needed
