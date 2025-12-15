@@ -98,39 +98,45 @@ The detector will send notifications when:
 1. **Missing Job Alert** (Critical)
    - Job hasn't run when expected (> 2.5x normal interval)
    - Example: A 5-minute job that hasn't run in 13+ minutes
+   - **No cooldown** - alerts every 15 minutes until acknowledged
+   - Use `anomaly ack <job>` to acknowledge job deletions
 
 2. **Duration Anomaly** (Warning/Critical)
    - Job runs unusually short or long (> 2.5σ from mean)
    - Example: A job that normally takes 5 minutes runs in 30 seconds or 30 minutes
+   - Has 30-minute cooldown to prevent alert spam
 
 ## Monitoring the Detector
 
 ### Quick Status Command (Recommended)
 
-A unified `anomaly` command is available at `~/will/anomaly` on jeffsc8:
+The `anomaly` command provides unified access to all monitoring functions:
 
 ```bash
 # Show quick status overview (default)
-~/will/anomaly
-~/will/anomaly status
+anomaly
+anomaly status
 
 # Full detailed report of all jobs
-~/will/anomaly report
+anomaly report
 
 # View detector logs
-~/will/anomaly log           # Last 50 lines
-~/will/anomaly log 100       # Last 100 lines
+anomaly log           # Last 50 lines
+anomaly log 100       # Last 100 lines
 
 # View alert history
-~/will/anomaly alerts        # Last 50 alerts
-~/will/anomaly alerts 20     # Last 20 alerts
+anomaly alerts        # Last 50 alerts
+anomaly alerts 20     # Last 20 alerts
 
 # Look up specific job details
-~/will/anomaly job mrms_to_chad.B.csh
-~/will/anomaly job update_dashboard_cron.sh
+anomaly job mrms_to_chad.B.csh
+anomaly job update_dashboard_cron.sh
+
+# Acknowledge job deletion (stops alerts)
+anomaly ack old_workflow.csh
 
 # Show help
-~/will/anomaly help
+anomaly help
 ```
 
 **Example output:**
@@ -173,6 +179,33 @@ python3 job_detector.py --config config/detection_config_production.yaml --repor
 cat /e/08/erthch01/monitoring/anomaly_detection/job_profiles.json | python3 -m json.tool | less
 ```
 
+## Managing Job Deletions
+
+When you permanently remove a job from crontab, the detector will alert every 15 minutes until you acknowledge it.
+
+### Acknowledge a Deleted Job
+
+```bash
+# View which jobs are alerting
+anomaly alerts
+
+# Acknowledge the deletion
+anomaly ack old_workflow.csh
+# ✓ Acknowledged and removed 'old_workflow.csh' from monitoring
+#   The job will no longer trigger alerts
+```
+
+### Workflow Example
+
+1. You remove `old_workflow.csh` from crontab
+2. Detector starts alerting every 15 minutes: "Missing Job: old_workflow.csh"
+3. You get ntfy notifications on your phone
+4. You log in and acknowledge: `anomaly ack old_workflow.csh`
+5. Job is removed from monitoring, alerts stop immediately
+
+**Why no cooldown for missing jobs?**  
+Missing jobs might indicate a real problem (failed cron, disk full, etc.). You'll get alerts every cycle until you either fix the issue or acknowledge the deletion. This ensures critical failures don't go unnoticed.
+
 ## Stopping/Disabling
 
 ### Temporary stop
@@ -193,6 +226,12 @@ rm -rf /e/08/erthch01/monitoring/anomaly_detection
 1. Check ntfy is enabled in config: `grep -A3 ntfy config/detection_config_production.yaml`
 2. Test ntfy manually: `curl -d "Test" https://ntfy.sh/ect-hpc`
 3. Check for errors in log: `grep ERROR anomaly_detector.log`
+
+### Job keeps alerting after deletion
+Acknowledge it:
+```bash
+anomaly ack <job_name>
+```
 
 ### Too many false positives
 Adjust sensitivity in `config/detection_config_production.yaml`:
@@ -227,13 +266,13 @@ Key settings in `config/detection_config_production.yaml`:
 - `detection.min_data_points`: 10 (minimum runs before alerting)
 - `thresholds.missing_job_multiplier`: 2.5 (alert when > 2.5x expected interval)
 - `thresholds.duration_anomaly_sigma`: 2.5 (alert when > 2.5 standard deviations)
-- `alerts.cooldown_period`: 1800 seconds (don't re-alert for 30 minutes)
+- `alerts.cooldown_period`: 1800 seconds (cooldown for duration anomalies, NOT for missing jobs)
 
 ## Next Steps
 
 1. ✅ Review this deployment documentation
 2. ✅ Add crontab entry (running every 15 minutes)
-3. ✅ Anomaly command deployed at `~/will/anomaly`
+3. ✅ Anomaly command deployed and available in PATH
 4. ⏳ Subscribe to ntfy.sh topic `ect-hpc`
 5. ⏳ Monitor for first 24-48 hours for false positives
 6. ⏳ Adjust sensitivity if needed
