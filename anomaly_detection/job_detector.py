@@ -439,15 +439,16 @@ class JobAnomalyDetector:
     def _handle_anomalies(self, anomalies):
         """Handle detected anomalies"""
         for anomaly in anomalies:
-            # Check cooldown
+            # Check cooldown (but NOT for missing jobs - alert every cycle)
             alert_key = "{}:{}".format(anomaly['job_name'], anomaly['type'])
             now = datetime.utcnow()
             
-            if alert_key in self.alert_cooldowns:
-                last_alert = self.alert_cooldowns[alert_key]
-                cooldown = self.config['alerts']['cooldown_period']
-                if (now - last_alert).total_seconds() < cooldown:
-                    continue
+            if anomaly['type'] != 'missing_job':  # No cooldown for missing jobs
+                if alert_key in self.alert_cooldowns:
+                    last_alert = self.alert_cooldowns[alert_key]
+                    cooldown = self.config['alerts']['cooldown_period']
+                    if (now - last_alert).total_seconds() < cooldown:
+                        continue
             
             # Log anomaly
             if anomaly['type'] == 'missing_job':
