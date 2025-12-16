@@ -495,6 +495,14 @@ class JobAnomalyDetector:
         # Send ntfy notification
         ntfy_channel = self.config['alerts']['channels'].get('ntfy', {})
         if ntfy_channel.get('enabled'):
+            # Check if we should suppress notifications in learning mode
+            learning_mode = self.config.get('detection', {}).get('learning_mode', False)
+            suppress_in_learning = ntfy_channel.get('suppress_in_learning_mode', False)
+            
+            if learning_mode and suppress_in_learning:
+                logger.debug("Suppressing ntfy notification (learning mode)")
+                return
+            
             try:
                 import requests
                 server = ntfy_channel.get('server', 'https://ntfy.sh')
