@@ -318,6 +318,7 @@ class JobAnomalyDetector:
     def _update_existing_profiles(self):
         """Update existing job profiles with new runs from JSON data"""
         updated_count = 0
+        duration_anomalies = []
         
         # Update login jobs
         login_data = self._load_data_source(
@@ -341,6 +342,15 @@ class JobAnomalyDetector:
                             if profile.last_seen and start_time <= profile.last_seen:
                                 continue
                             duration = run.get('duration_seconds', 0)
+                            
+                            # Check for duration anomaly before adding
+                            anomaly = profile.check_duration_anomaly(
+                                duration,
+                                self.config['thresholds']['duration_anomaly_sigma']
+                            )
+                            if anomaly:
+                                duration_anomalies.append(anomaly)
+                            
                             profile.add_run(start_time, duration)
                             updated_count += 1
                         except:
@@ -370,6 +380,15 @@ class JobAnomalyDetector:
                             cores = run.get('cores', 1)
                             core_hours = run.get('core_hours', 0)
                             duration = (core_hours / cores) * 3600 if cores > 0 else 0
+                            
+                            # Check for duration anomaly before adding
+                            anomaly = profile.check_duration_anomaly(
+                                duration,
+                                self.config['thresholds']['duration_anomaly_sigma']
+                            )
+                            if anomaly:
+                                duration_anomalies.append(anomaly)
+                            
                             profile.add_run(start_time, duration)
                             updated_count += 1
                         except:
@@ -378,7 +397,7 @@ class JobAnomalyDetector:
         if updated_count > 0:
             logger.info("Updated profiles with {} new runs".format(updated_count))
         
-        return updated_count
+        return updated_count, duration_anomalies
     
     def _discover_new_jobs(self):
         """Discover and add new jobs from JSON data"""
@@ -473,7 +492,11 @@ class JobAnomalyDetector:
         try:
             while True:
                 # Update existing profiles with new runs
-                self._update_existing_profiles()
+                updated_count, duration_anomalies = self._update_existing_profiles()
+                
+                # Handle any duration anomalies found during update
+                if duration_anomalies:
+                    self._handle_anomalies(duration_anomalies)
                 
                 # Check for new jobs
                 new_jobs = self._discover_new_jobs()
