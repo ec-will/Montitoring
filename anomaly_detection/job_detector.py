@@ -315,6 +315,71 @@ class JobAnomalyDetector:
             logger.error("Failed to parse {}: {}".format(source_path, e))
             return None
     
+    def _update_existing_profiles(self):
+        """Update existing job profiles with new runs from JSON data"""
+        updated_count = 0
+        
+        # Update login jobs
+        login_data = self._load_data_source(
+            self.config['data_sources']['login_jobs']
+        )
+        if login_data:
+            jobs = login_data.get('job_runs', {}).get('jobs', {})
+            for job_name, job_data in jobs.items():
+                if job_name in self.job_profiles:
+                    profile = self.job_profiles[job_name]
+                    runs = sorted(
+                        job_data.get('runs_detail', []),
+                        key=lambda r: r.get('start', '')
+                    )
+                    
+                    # Only add runs newer than last_seen
+                    for run in runs:
+                        try:
+                            start_time = parse_iso_datetime(run['start'])
+                            # Skip runs we've already seen
+                            if profile.last_seen and start_time <= profile.last_seen:
+                                continue
+                            duration = run.get('duration_seconds', 0)
+                            profile.add_run(start_time, duration)
+                            updated_count += 1
+                        except:
+                            continue
+        
+        # Update cluster jobs
+        cluster_data = self._load_data_source(
+            self.config['data_sources']['cluster_usage']
+        )
+        if cluster_data:
+            jobs = cluster_data.get('job_usage', {}).get('jobs', {})
+            for job_name, job_data in jobs.items():
+                if job_name in self.job_profiles:
+                    profile = self.job_profiles[job_name]
+                    runs = sorted(
+                        job_data.get('runs_detail', []),
+                        key=lambda r: r.get('start', '')
+                    )
+                    
+                    # Only add runs newer than last_seen
+                    for run in runs:
+                        try:
+                            start_time = parse_iso_datetime(run['start'])
+                            # Skip runs we've already seen
+                            if profile.last_seen and start_time <= profile.last_seen:
+                                continue
+                            cores = run.get('cores', 1)
+                            core_hours = run.get('core_hours', 0)
+                            duration = (core_hours / cores) * 3600 if cores > 0 else 0
+                            profile.add_run(start_time, duration)
+                            updated_count += 1
+                        except:
+                            continue
+        
+        if updated_count > 0:
+            logger.info("Updated profiles with {} new runs".format(updated_count))
+        
+        return updated_count
+    
     def _discover_new_jobs(self):
         """Discover and add new jobs from JSON data"""
         new_jobs = []
@@ -407,6 +472,9 @@ class JobAnomalyDetector:
         
         try:
             while True:
+                # Update existing profiles with new runs
+                self._update_existing_profiles()
+                
                 # Check for new jobs
                 new_jobs = self._discover_new_jobs()
                 if new_jobs:
