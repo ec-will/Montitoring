@@ -34,8 +34,8 @@ echo "✅ JSON data updated successfully"
 echo
 
 # Check if dashboard HTML exists
-if [ ! -f "transfer_dashboard.html" ]; then
-    echo "❌ Error: transfer_dashboard.html not found"
+if [ ! -f "transfers.html" ]; then
+    echo "❌ Error: transfers.html not found"
     exit 1
 fi
 
@@ -50,7 +50,7 @@ while lsof -i :$PORT >/dev/null 2>&1; do
 done
 
 echo "🌐 Starting web server on port $PORT..."
-echo "Dashboard will be available at: http://127.0.0.1:$PORT/transfer_dashboard.html"
+echo "Dashboard will be available at: http://127.0.0.1:$PORT/transfers.html"
 echo
 
 # Kill any existing Python servers
@@ -70,12 +70,12 @@ sleep 2
 # Open dashboard in browser
 if command -v open >/dev/null 2>&1; then
     echo "🔗 Opening dashboard in browser..."
-    open "http://127.0.0.1:$PORT/transfer_dashboard.html"
+    open "http://127.0.0.1:$PORT/transfers.html"
 elif command -v xdg-open >/dev/null 2>&1; then
     echo "🔗 Opening dashboard in browser..."
-    xdg-open "http://127.0.0.1:$PORT/transfer_dashboard.html"
+    xdg-open "http://127.0.0.1:$PORT/transfers.html"
 else
-    echo "🔗 Please open http://127.0.0.1:$PORT/transfer_dashboard.html in your browser"
+    echo "🔗 Please open http://127.0.0.1:$PORT/transfers.html in your browser"
 fi
 
 echo

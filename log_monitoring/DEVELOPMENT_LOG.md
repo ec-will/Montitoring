@@ -27,7 +27,7 @@ Built a complete transfer log monitoring system with Python parser and web dashb
 - Sorts by timestamp descending (newest entries first) to handle PIDs from multiple machines
 - CLI with `--summary` flag and customizable input/output paths
 
-### 2. Web Dashboard (`transfer_dashboard.html`)
+### 2. Web Dashboard (`transfers.html`)
 - **Purpose**: Interactive web interface for viewing transfer logs
 - **Design**: Standalone HTML file (no external dependencies)
 
@@ -62,7 +62,7 @@ log_monitoring/
 ├── transfer.log              # Input: Raw transfer logs
 ├── parse_transfers.py        # Parser: Log → JSON
 ├── transfers.json           # Generated: Structured data
-├── transfer_dashboard.html  # Web dashboard
+├── transfers.html           # Web dashboard
 ├── serve_dashboard.sh       # Automation script
 ├── test_parser.py          # Tests
 ├── README.md               # User documentation
@@ -158,7 +158,7 @@ python3 parse_transfers.py --summary
 # Manual dashboard setup
 python3 parse_transfers.py
 python3 -m http.server 8080
-# Open http://localhost:8080/transfer_dashboard.html
+# Open http://localhost:8080/transfers.html
 
 # Run tests
 python3 test_parser.py
@@ -199,7 +199,7 @@ log rotation (cron: 0 0 * * *)
 ```
 transfers.json (received from HPC)
     ↓
-transfer_dashboard.html (static file)
+transfers.html (static file)
     ↓
 Web server (serves dashboard)
     ↓

@@ -13,7 +13,7 @@ This system operates in a distributed environment:
    - Generated `transfers.json` - Transferred to web server
 
 2. **Web Server Environment**:
-   - `transfer_dashboard.html` - Interactive web dashboard
+   - `transfers.html` - Interactive web dashboard
    - `transfers.json` - Data consumed by dashboard
    - Web server - Serves dashboard to users
 
@@ -138,7 +138,7 @@ Each log entry contains:
 1. **Deploy Dashboard**:
    ```bash
    # Copy dashboard files to web server
-   scp transfer_dashboard.html webserver:/var/www/dashboard/
+   scp transfers.html webserver:/var/www/dashboard/
    ```
 
 2. **Configure Web Server**: Ensure web server serves static files from dashboard directory
@@ -200,7 +200,7 @@ python3 parse_transfers.py
 # Start web server
 python3 -m http.server 8080
 
-# Open http://127.0.0.1:8080/transfer_dashboard.html
+# Open http://127.0.0.1:8080/transfers.html
 ```
 
 ### Dashboard Features
@@ -220,7 +220,7 @@ log_monitoring/
 ├── parse_transfers.py        # Main parser script
 ├── test_parser.py           # Test suite
 ├── transfers.json           # Generated JSON output
-├── transfer_dashboard.html  # Web dashboard
+├── transfers.html           # Web dashboard
 ├── serve_dashboard.sh       # Dashboard server script
 └── README.md               # This documentation
 ```

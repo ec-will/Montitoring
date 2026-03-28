@@ -431,7 +431,7 @@
     <div class="footer">
         <div>Last updated: <span id="timestamp"></span></div>
         <div style="margin-top: 5px;">
-            Click any transfer row to view complete details including caller, args, method, and all related log entries • Use filters to narrow results
+            Click any transfer row to view complete details including caller, args, method, and all related log entries
         </div>
     </div>
 
@@ -439,6 +439,11 @@
         let transferData = [];
         let allTransfers = [];
         let filteredTransfers = [];
+        let pidIndex = new Map();  // pid -> {duration, entries} — built once, O(1) lookups
+        let currentPage = 0;
+        const PAGE_SIZE = 100;
+        const renderedDetails = new Set();  // tracks which row indices have been rendered
+        let detailsLoaded = false;
 
         async function loadTransferData() {
             try {
@@ -472,9 +477,16 @@
                     return new Date(b.timestamp) - new Date(a.timestamp);  // Newest timestamps first
                 });
                 
+                buildPidIndex();
                 applyFilters();
                 updateStats();
-                renderTransfers();
+                currentPage = 0;
+                renderedDetails.clear();
+                if (detailsLoaded) {
+                    renderTransfers();
+                } else {
+                    showLoadPrompt();
+                }
                 updateTimestamp();
             } catch (error) {
                 console.error('Error loading transfer data:', error);
@@ -482,6 +494,63 @@
                     '<div class="no-data">Error loading transfer data: ' + error.message + '</div>';
                 throw error; // Re-throw for refresh button handling
             }
+        }
+
+        function showLoadPrompt() {
+            const container = document.getElementById('transfers-container');
+            if (filteredTransfers.length === 0) {
+                container.innerHTML = '<div class="no-data">No transfers match your filters</div>';
+                return;
+            }
+            const errorCount = filteredTransfers.filter(t => t.log_type === 'ERROR').length;
+            const errorBadge = errorCount > 0
+                ? `<span style="margin-left:10px; padding:3px 10px; background:#f8d7da; color:#721c24;
+                    border-radius:12px; font-weight:600;">${errorCount} ERROR${errorCount > 1 ? 'S' : ''}</span>`
+                : '';
+            container.innerHTML = `
+                <div style="text-align:center; padding:30px;">
+                    <div style="margin-bottom:12px; font-size:14px; color:#495057;">
+                        ${filteredTransfers.length.toLocaleString()} entries${errorBadge}
+                    </div>
+                    <button onclick="loadDetails()"
+                        style="padding:8px 24px; background:#667eea; color:white; border:none;
+                               border-radius:4px; cursor:pointer; font-size:14px;">
+                        Load Details
+                    </button>
+                </div>`;
+        }
+
+        function loadDetails() {
+            detailsLoaded = true;
+            renderTransfers();
+        }
+
+        function buildPidIndex() {
+            pidIndex.clear();
+            // Build from allTransfers so detail panels always have the full picture
+            const byPid = new Map();
+            allTransfers.forEach(t => {
+                if (!byPid.has(t.pid)) byPid.set(t.pid, []);
+                byPid.get(t.pid).push(t);
+            });
+            byPid.forEach((entries, pid) => {
+                const timestamps = entries.map(e => new Date(e.timestamp)).sort((a, b) => a - b);
+                const durationMs = timestamps[timestamps.length - 1] - timestamps[0];
+                const durationSeconds = Math.round(durationMs / 1000);
+                let duration = 'N/A';
+                if (entries.length > 1) {
+                    if (durationSeconds < 60) {
+                        duration = `${durationSeconds}s`;
+                    } else if (durationSeconds < 3600) {
+                        const m = Math.floor(durationSeconds / 60), s = durationSeconds % 60;
+                        duration = s > 0 ? `${m}m ${s}s` : `${m}m`;
+                    } else {
+                        const h = Math.floor(durationSeconds / 3600), m = Math.floor((durationSeconds % 3600) / 60);
+                        duration = m > 0 ? `${h}h ${m}m` : `${h}h`;
+                    }
+                }
+                pidIndex.set(pid, { duration, entries });
+            });
         }
 
         function applyFilters() {
@@ -552,13 +621,26 @@
 
         function renderTransfers() {
             const container = document.getElementById('transfers-container');
-            
+
             if (filteredTransfers.length === 0) {
                 container.innerHTML = '<div class="no-data">No file transfers match your filters</div>';
                 return;
             }
 
+            const totalPages = Math.ceil(filteredTransfers.length / PAGE_SIZE);
+            const pageStart = currentPage * PAGE_SIZE;
+            const pageEnd = Math.min(pageStart + PAGE_SIZE, filteredTransfers.length);
+            const pageSlice = filteredTransfers.slice(pageStart, pageEnd);
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+
             let html = `
+                <div class="pagination" style="margin-bottom:8px; display:flex; align-items:center; gap:10px;">
+                    <button onclick="goToPage(${currentPage - 1})" ${currentPage === 0 ? 'disabled' : ''}
+                        style="padding:4px 10px;">&#8592; Prev</button>
+                    <span>Page ${currentPage + 1} of ${totalPages} &nbsp;(${filteredTransfers.length.toLocaleString()} entries)</span>
+                    <button onclick="goToPage(${currentPage + 1})" ${currentPage >= totalPages - 1 ? 'disabled' : ''}
+                        style="padding:4px 10px;">Next &#8594;</button>
+                </div>
                 <table>
                     <thead>
                         <tr>
@@ -571,52 +653,54 @@
                     </thead>
                     <tbody>
             `;
-            
-            // Track PIDs we've seen to add separators for new PID groups
+
             const seenPids = new Set();
-            
-            filteredTransfers.forEach((transfer, index) => {
+
+            pageSlice.forEach((transfer, localIndex) => {
+                const index = pageStart + localIndex;  // global index into filteredTransfers
                 const rowClass = `transfer-row ${transfer.log_type.toLowerCase()}-row`;
-                const searchTerm = document.getElementById('search-input').value.toLowerCase();
-                
-                // Add PID group separator for new PIDs (first occurrence of each PID)
+
                 let pidGroupClass = '';
                 if (!seenPids.has(transfer.pid)) {
                     pidGroupClass = ' pid-group';
                     seenPids.add(transfer.pid);
                 }
-                
-                // Highlight search terms in filename
+
                 let fileName = transfer.file || '';
                 if (searchTerm && transfer.file) {
-                    const regex = new RegExp(`(${searchTerm})`, 'gi');
+                    const regex = new RegExp(`(${escapeRegex(searchTerm)})`, 'gi');
                     fileName = transfer.file.replace(regex, '<span class="search-highlight">$1</span>');
                 }
-                
-                const duration = calculateTransferDuration(transfer.pid);
-                
+
+                const duration = (pidIndex.get(transfer.pid) || {}).duration || 'N/A';
+
                 html += `
-                    <tr class="${rowClass}${pidGroupClass}" data-pid="${transfer.pid}" data-index="${index}" onclick="handleRowClick(${index}, '${transfer.log_type}', ${transfer.pid})">
+                    <tr class="${rowClass}${pidGroupClass}" data-pid="${transfer.pid}" data-index="${index}" onclick="handleRowClick(${index})">
                         <td>${formatTime(transfer.timestamp)}</td>
                         <td><span class="status ${transfer.log_type.toLowerCase()}">${transfer.log_type}</span></td>
                         <td><span class="file-name">${fileName}</span></td>
                         <td>${transfer.destination || ''}</td>
                         <td><span class="duration">${duration}</span></td>
                     </tr>
-                    <tr class="transfer-details" id="details-${index}">
-                        <td colspan="5" class="details-cell">
-                            ${renderTransferDetails(transfer)}
-                        </td>
-                    </tr>
+                    <tr class="transfer-details" id="details-${index}"><td colspan="5" class="details-cell"></td></tr>
                 `;
             });
-            
-            html += `
-                    </tbody>
-                </table>
-            `;
 
+            html += `</tbody></table>`;
             container.innerHTML = html;
+        }
+
+        function goToPage(page) {
+            const totalPages = Math.ceil(filteredTransfers.length / PAGE_SIZE);
+            if (page < 0 || page >= totalPages) return;
+            currentPage = page;
+            renderedDetails.clear();
+            renderTransfers();
+            window.scrollTo(0, 0);
+        }
+
+        function escapeRegex(str) {
+            return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         }
 
         function formatTime(timestamp) {
@@ -634,42 +718,11 @@
             return `${dateStr} ${timeStr}`;
         }
 
-        function calculateTransferDuration(pid) {
-            // Get all entries for this PID
-            const pidEntries = filteredTransfers.filter(t => t.pid === pid);
-            
-            if (pidEntries.length <= 1) {
-                return 'N/A';
-            }
-            
-            // Get timestamps and sort them
-            const timestamps = pidEntries.map(entry => new Date(entry.timestamp)).sort((a, b) => a - b);
-            const startTime = timestamps[0];
-            const endTime = timestamps[timestamps.length - 1];
-            
-            // Calculate duration in seconds
-            const durationMs = endTime - startTime;
-            const durationSeconds = Math.round(durationMs / 1000);
-            
-            if (durationSeconds < 60) {
-                return `${durationSeconds}s`;
-            } else if (durationSeconds < 3600) {
-                const minutes = Math.floor(durationSeconds / 60);
-                const seconds = durationSeconds % 60;
-                return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
-            } else {
-                const hours = Math.floor(durationSeconds / 3600);
-                const minutes = Math.floor((durationSeconds % 3600) / 60);
-                return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
-            }
-        }
-
         function renderTransferDetails(transfer) {
             const searchTerm = document.getElementById('search-input').value.toLowerCase();
-            
-            // Get all entries for the same PID to show complete transfer info
-            const pidEntries = filteredTransfers.filter(t => t.pid === transfer.pid);
-            
+
+            // Use pidIndex (built from allTransfers) so INFO lines are always shown
+            const pidEntries = (pidIndex.get(transfer.pid) || {}).entries || [];
             let detailTags = '';
             
             // Add script info
@@ -719,16 +772,18 @@
             `;
         }
 
-        function handleRowClick(index, logType, pid) {
-            // Toggle details for the clicked row - shows all related info
-            toggleTransferDetails(index);
-        }
-
-        function toggleTransferDetails(index) {
+        function handleRowClick(index) {
             const element = document.getElementById(`details-${index}`);
-            if (element) {
-                element.classList.toggle('expanded');
+            if (!element) return;
+
+            // Lazy-render: populate detail cell on first click, then memoize
+            if (!renderedDetails.has(index)) {
+                const transfer = filteredTransfers[index];
+                element.querySelector('td').innerHTML = renderTransferDetails(transfer);
+                renderedDetails.add(index);
             }
+
+            element.classList.toggle('expanded');
         }
 
         function clearFilters() {
@@ -736,7 +791,9 @@
             document.getElementById('search-input').value = '';
             applyFilters();
             updateStats();
-            renderTransfers();
+            currentPage = 0;
+            renderedDetails.clear();
+            if (detailsLoaded) renderTransfers(); else showLoadPrompt();
         }
 
         function refreshData() {
@@ -773,19 +830,28 @@
             document.getElementById('header-time').textContent = utcString;
         }
 
+        // Debounce helper
+        function debounce(fn, delay) {
+            let timer;
+            return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), delay); };
+        }
+
         // Event listeners
         document.getElementById('log-type-filter').addEventListener('change', () => {
             applyFilters();
             updateStats();
-            renderTransfers();
+            currentPage = 0;
+            renderedDetails.clear();
+            if (detailsLoaded) renderTransfers(); else showLoadPrompt();
         });
 
-
-        document.getElementById('search-input').addEventListener('input', () => {
+        document.getElementById('search-input').addEventListener('input', debounce(() => {
             applyFilters();
             updateStats();
-            renderTransfers();
-        });
+            currentPage = 0;
+            renderedDetails.clear();
+            if (detailsLoaded) renderTransfers(); else showLoadPrompt();
+        }, 300));
 
         // Load data when page loads
         loadTransferData();
@@ -793,7 +859,7 @@
         // Update timestamp every minute
         setInterval(updateTimestamp, 60000);
         
-        // Auto-refresh data every 5 minutes
+        // Auto-refresh data every 5 minutes (preserves detailsLoaded state)
         setInterval(loadTransferData, 300000);
     </script>
 </body>
